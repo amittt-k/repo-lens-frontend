@@ -60,8 +60,7 @@ function GraphWorkspace() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const typing =
-        e.target instanceof HTMLElement &&
-        ["INPUT", "TEXTAREA"].includes(e.target.tagName);
+        e.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(e.target.tagName);
       if (typing) return;
       if (e.key === "/" || (e.key === "k" && (e.metaKey || e.ctrlKey))) {
         e.preventDefault();
@@ -109,7 +108,11 @@ function GraphWorkspace() {
           className="hidden w-full justify-start gap-2 text-xs lg:flex"
           onClick={() => setSidebarOpen((o) => !o)}
         >
-          {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+          {sidebarOpen ? (
+            <PanelLeftClose className="size-4" />
+          ) : (
+            <PanelLeftOpen className="size-4" />
+          )}
           {sidebarOpen ? "Collapse" : null}
         </Button>
 
@@ -140,7 +143,10 @@ function GraphWorkspace() {
       </aside>
 
       {/* Graph canvas */}
-      <section className="relative min-w-0 flex-1 basis-auto" style={{ height: "min(70vh, 720px)" }}>
+      <section
+        className="relative min-w-0 flex-1 basis-auto"
+        style={{ height: "calc(100vh - 57px)", minHeight: 420 }}
+      >
         {nodes.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState
@@ -188,11 +194,7 @@ function GraphWorkspace() {
         </aside>
       ) : null}
 
-      <SearchPalette
-        open={searchOpen}
-        onOpenChange={setSearchOpen}
-        onSelectNode={setSelectedId}
-      />
+      <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} onSelectNode={setSelectedId} />
     </main>
   );
 }
