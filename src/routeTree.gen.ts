@@ -10,33 +10,81 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnalyzingRouteImport } from './routes/analyzing'
+import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
+import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
+import { Route as RepoOwnerNameGraphRouteImport } from './routes/repo.$owner.$name.graph'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalyzingRoute = AnalyzingRouteImport.update({
+  id: '/analyzing',
+  path: '/analyzing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepoOwnerNameRoute = RepoOwnerNameRouteImport.update({
+  id: '/repo/$owner/$name',
+  path: '/repo/$owner/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepoOwnerNameIndexRoute = RepoOwnerNameIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
+const RepoOwnerNameGraphRoute = RepoOwnerNameGraphRouteImport.update({
+  id: '/graph',
+  path: '/graph',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analyzing': typeof AnalyzingRoute
+  '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
+  '/repo/$owner/$name/graph': typeof RepoOwnerNameGraphRoute
+  '/repo/$owner/$name/': typeof RepoOwnerNameIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analyzing': typeof AnalyzingRoute
+  '/repo/$owner/$name/graph': typeof RepoOwnerNameGraphRoute
+  '/repo/$owner/$name': typeof RepoOwnerNameIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analyzing': typeof AnalyzingRoute
+  '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
+  '/repo/$owner/$name/graph': typeof RepoOwnerNameGraphRoute
+  '/repo/$owner/$name/': typeof RepoOwnerNameIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/analyzing'
+    | '/repo/$owner/$name'
+    | '/repo/$owner/$name/graph'
+    | '/repo/$owner/$name/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/analyzing' | '/repo/$owner/$name/graph' | '/repo/$owner/$name'
+  id:
+    | '__root__'
+    | '/'
+    | '/analyzing'
+    | '/repo/$owner/$name'
+    | '/repo/$owner/$name/graph'
+    | '/repo/$owner/$name/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalyzingRoute: typeof AnalyzingRoute
+  RepoOwnerNameRoute: typeof RepoOwnerNameRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +96,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analyzing': {
+      id: '/analyzing'
+      path: '/analyzing'
+      fullPath: '/analyzing'
+      preLoaderRoute: typeof AnalyzingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/repo/$owner/$name': {
+      id: '/repo/$owner/$name'
+      path: '/repo/$owner/$name'
+      fullPath: '/repo/$owner/$name'
+      preLoaderRoute: typeof RepoOwnerNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/repo/$owner/$name/': {
+      id: '/repo/$owner/$name/'
+      path: '/'
+      fullPath: '/repo/$owner/$name/'
+      preLoaderRoute: typeof RepoOwnerNameIndexRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
+    '/repo/$owner/$name/graph': {
+      id: '/repo/$owner/$name/graph'
+      path: '/graph'
+      fullPath: '/repo/$owner/$name/graph'
+      preLoaderRoute: typeof RepoOwnerNameGraphRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
   }
 }
 
+interface RepoOwnerNameRouteChildren {
+  RepoOwnerNameGraphRoute: typeof RepoOwnerNameGraphRoute
+  RepoOwnerNameIndexRoute: typeof RepoOwnerNameIndexRoute
+}
+
+const RepoOwnerNameRouteChildren: RepoOwnerNameRouteChildren = {
+  RepoOwnerNameGraphRoute: RepoOwnerNameGraphRoute,
+  RepoOwnerNameIndexRoute: RepoOwnerNameIndexRoute,
+}
+
+const RepoOwnerNameRouteWithChildren = RepoOwnerNameRoute._addFileChildren(
+  RepoOwnerNameRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyzingRoute: AnalyzingRoute,
+  RepoOwnerNameRoute: RepoOwnerNameRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
