@@ -102,7 +102,7 @@ function Canvas(props: GraphCanvasProps) {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="absolute inset-0 flex flex-col">
       <GraphToolbar
         onZoomIn={() => zoomIn({ duration: 200 })}
         onZoomOut={() => zoomOut({ duration: 200 })}
