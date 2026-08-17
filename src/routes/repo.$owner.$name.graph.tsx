@@ -140,7 +140,7 @@ function GraphWorkspace() {
       </aside>
 
       {/* Graph canvas */}
-      <section className="relative flex h-[70vh] min-w-0 flex-1 flex-col lg:h-full">
+      <section className="relative min-w-0 flex-1 basis-auto" style={{ height: "min(70vh, 720px)" }}>
         {nodes.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
             <EmptyState
