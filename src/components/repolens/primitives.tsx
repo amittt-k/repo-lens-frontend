@@ -5,20 +5,14 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { NodeKind, RelationKind } from "@/data/mock-repo";
 import { kindLabels } from "@/data/mock-repo";
-
-const kindStyles: Record<NodeKind, string> = {
-  module: "border-node-module/40 bg-node-module/10 text-node-module",
-  component: "border-node-component/40 bg-node-component/10 text-node-component",
-  function: "border-node-function/40 bg-node-function/10 text-node-function",
-  external: "border-node-external/40 bg-node-external/10 text-node-external",
-};
+import { kindTokens, relationTokens } from "@/lib/graph-tokens";
 
 export function KindBadge({ kind, className }: { kind: NodeKind; className?: string }) {
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest",
-        kindStyles[kind],
+        kindTokens[kind].badge,
         className,
       )}
     >
@@ -28,37 +22,35 @@ export function KindBadge({ kind, className }: { kind: NodeKind; className?: str
   );
 }
 
-const relationStyles: Record<RelationKind, string> = {
-  import: "text-node-module",
-  call: "text-node-function",
-  export: "text-node-component",
-};
-
 export function RelationDot({ relation }: { relation: RelationKind }) {
-  return <span className={cn("size-2 rounded-full bg-current", relationStyles[relation])} />;
+  return <span className={cn("size-2 rounded-full bg-current", relationTokens[relation].text)} />;
 }
 
 export function PanelHeading({
   title,
   hint,
   action,
+  as: Heading = "h3",
 }: {
   title: string;
   hint?: string;
   action?: ReactNode;
+  /** Heading level for the document outline. Panels default to h3. */
+  as?: "h2" | "h3";
 }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-4 py-3">
       <div className="min-w-0">
-        <h2 className="truncate font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        <Heading className="truncate font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
           {title}
-        </h2>
+        </Heading>
         {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{hint}</p> : null}
       </div>
       {action}
     </div>
   );
 }
+
 
 export function EmptyState({
   title,
