@@ -57,11 +57,13 @@ export function EmptyState({
   description,
   icon,
   className,
+  action,
 }: {
   title: string;
   description: string;
   icon?: ReactNode;
   className?: string;
+  action?: ReactNode;
 }) {
   return (
     <div
@@ -79,7 +81,9 @@ export function EmptyState({
           {description}
         </p>
       </div>
+      {action}
     </div>
+
   );
 }
 
