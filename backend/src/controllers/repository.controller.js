@@ -2,6 +2,7 @@ import githubService from "../services/github.service.js";
 import ingestionService from "../services/ingestion.service.js";
 import fileTreeService from "../services/fileTree.service.js";
 import orchestratorService from "../services/orchestrator.service.js";
+import graphService from "../services/graph.service.js";
 import prisma from "../config/database.js";
 
 export class RepositoryController {
@@ -66,10 +67,21 @@ export class RepositoryController {
       next(err);
     }
   }
+
+  async getGraph(req, res, next) {
+    try {
+      const { id } = req.params;
+      const result = await graphService.getRepositoryGraph(id, req.query || {});
+      return res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const repositoryController = new RepositoryController();
 export default repositoryController;
+
 
 
 

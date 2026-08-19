@@ -38,6 +38,11 @@ router.post("/:id/analyze", (req, res, next) => {
   repositoryController.analyzeRepository(req, res, next);
 });
 
+router.get("/:id/graph", (req, res, next) => {
+  repositoryController.getGraph(req, res, next);
+});
+
 export default router;
+
 
 
