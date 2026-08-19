@@ -18,4 +18,21 @@ router.post("/validate", validateUrlPayload, (req, res, next) => {
   repositoryController.validateRepository(req, res, next);
 });
 
+router.post("/ingest", validateUrlPayload, (req, res, next) => {
+  repositoryController.ingestRepository(req, res, next);
+});
+
+router.get("/:id", (req, res, next) => {
+  repositoryController.getRepository(req, res, next);
+});
+
+router.get("/:id/files", (req, res, next) => {
+  repositoryController.getFileTree(req, res, next);
+});
+
+router.get("/:id/tree", (req, res, next) => {
+  repositoryController.getFileTree(req, res, next);
+});
+
 export default router;
+
