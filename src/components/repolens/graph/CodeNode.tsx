@@ -3,6 +3,7 @@ import { Box, Component, FileCode2, Package } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { NodeKind } from "@/data/mock-repo";
+import { kindTokens } from "@/lib/graph-tokens";
 
 export interface CodeNodePayload extends Record<string, unknown> {
   label: string;
@@ -18,20 +19,6 @@ const icons: Record<NodeKind, typeof Box> = {
   component: Component,
   function: FileCode2,
   external: Package,
-};
-
-const ring: Record<NodeKind, string> = {
-  module: "border-node-module/50",
-  component: "border-node-component/50",
-  function: "border-node-function/50",
-  external: "border-node-external/50 border-dashed",
-};
-
-const tint: Record<NodeKind, string> = {
-  module: "text-node-module",
-  component: "text-node-component",
-  function: "text-node-function",
-  external: "text-node-external",
 };
 
 export function CodeNode({ data, selected }: NodeProps) {
