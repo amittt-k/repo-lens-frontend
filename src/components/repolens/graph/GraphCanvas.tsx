@@ -13,17 +13,12 @@ import {
 } from "@xyflow/react";
 import { useCallback, useMemo, useState } from "react";
 
-import type { GraphEdgeData, GraphNodeData, RelationKind } from "@/data/mock-repo";
+import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
+import { relationTokens } from "@/lib/graph-tokens";
 import { GraphToolbar } from "../GraphToolbar";
 import { CodeNode, type CodeNodePayload } from "./CodeNode";
 
 const nodeTypes = { code: CodeNode };
-
-const edgeColor: Record<RelationKind, string> = {
-  import: "var(--color-node-module)",
-  call: "var(--color-node-function)",
-  export: "var(--color-node-component)",
-};
 
 export interface GraphCanvasProps {
   nodes: GraphNodeData[];
@@ -77,7 +72,7 @@ function Canvas(props: GraphCanvasProps) {
           label: e.symbol,
           animated: inTrace,
           style: {
-            stroke: inTrace ? "var(--color-primary)" : edgeColor[e.relation],
+            stroke: inTrace ? "var(--color-primary)" : relationTokens[e.relation].cssVar,
             strokeWidth: inTrace ? 2 : 1.2,
             opacity: dimmed ? 0.12 : 0.75,
             strokeDasharray: e.relation === "export" ? "4 3" : undefined,
