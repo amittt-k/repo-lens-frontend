@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { FileNode } from "@/data/mock-repo";
-import { mockFileTree } from "@/data/mock-repo";
 import { EmptyState, KindBadge } from "./primitives";
 
 function filterTree(nodes: FileNode[], q: string): FileNode[] {
@@ -101,17 +100,21 @@ function TreeRow({
   );
 }
 
+export interface FileExplorerProps {
+  tree?: FileNode[] | undefined;
+  selectedId?: string | null | undefined;
+  onSelect?: ((node: FileNode) => void) | undefined;
+  className?: string | undefined;
+}
+
 export function FileExplorer({
+  tree = [],
   selectedId,
   onSelect,
   className,
-}: {
-  selectedId?: string | null;
-  onSelect?: (node: FileNode) => void;
-  className?: string;
-}) {
+}: FileExplorerProps) {
   const [query, setQuery] = useState("");
-  const tree = useMemo(() => filterTree(mockFileTree, query), [query]);
+  const filteredTree = useMemo(() => filterTree(tree, query), [tree, query]);
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
@@ -126,8 +129,8 @@ export function FileExplorer({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-2">
-          {tree.length ? (
-            tree.map((node) => (
+          {filteredTree.length ? (
+            filteredTree.map((node) => (
               <TreeRow
                 key={node.id}
                 node={node}

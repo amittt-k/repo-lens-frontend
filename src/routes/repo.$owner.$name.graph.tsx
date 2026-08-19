@@ -1,16 +1,22 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { Loader2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileExplorer } from "@/components/repolens/FileExplorer";
-import { FlowTracePanel } from "@/components/repolens/FlowTracePanel";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { GraphSidebar } from "@/components/repolens/GraphSidebar";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
-import { RelationshipFilters } from "@/components/repolens/RelationshipFilters";
 import { SearchPalette } from "@/components/repolens/SearchPalette";
-import { EmptyState, PanelHeading } from "@/components/repolens/primitives";
-import { mockFlows, mockGraphEdges, mockGraphNodes } from "@/data/mock-repo";
+import { EmptyState } from "@/components/repolens/primitives";
+import { mockFileTree, mockFlows, mockGraphEdges, mockGraphNodes } from "@/data/mock-repo";
+import { useGraphShortcuts } from "@/hooks/useGraphShortcuts";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 
 // React Flow measures real DOM, so the canvas is loaded on the client only.
@@ -42,6 +48,7 @@ function CanvasFallback() {
 }
 
 function GraphWorkspace() {
+  const { owner, name } = Route.useParams();
   const {
     selectedId,
     selected,
@@ -52,24 +59,16 @@ function GraphWorkspace() {
     traceNodeIds,
     filters,
     setFilters,
+    resetFilters,
+    nodesById,
   } = useWorkspaceState();
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const typing =
-        e.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(e.target.tagName);
-      if (typing) return;
-      if (e.key === "/" || (e.key === "k" && (e.metaKey || e.ctrlKey))) {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  useGraphShortcuts({ onOpenSearch: () => setSearchOpen(true) });
 
   const nodes = useMemo(
     () => mockGraphNodes.filter((n) => filters.kinds.includes(n.kind)),
@@ -87,12 +86,23 @@ function GraphWorkspace() {
     [filters.relations, visibleIds],
   );
 
+  const handlePanelToggle = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setMobilePanelOpen((o) => !o);
+    } else {
+      setPanelOpen((o) => !o);
+    }
+  };
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col lg:h-[calc(100vh-57px)] lg:flex-row">
-      {/* Left rail: structure + filters */}
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+      <h1 className="sr-only">
+        {owner}/{name} dependency graph workspace
+      </h1>
+
+      {/* Left rail: structure + filters (Desktop) */}
       <aside
-        className={`flex shrink-0 flex-col gap-3 border-border p-3 lg:h-full lg:overflow-hidden lg:border-r ${
+        className={`hidden shrink-0 flex-col gap-3 border-border p-3 lg:flex lg:h-full lg:overflow-hidden lg:border-r ${
           sidebarOpen ? "lg:w-[320px]" : "lg:w-[60px]"
         }`}
       >
@@ -112,37 +122,34 @@ function GraphWorkspace() {
 
         {sidebarOpen ? (
           <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-3 pr-2">
-              <section className="panel-surface flex h-[300px] flex-col overflow-hidden rounded-lg">
-                <PanelHeading title="Explorer" hint="Click a file to select its node" />
-                <FileExplorer
-                  selectedId={selectedId}
-                  onSelect={(node) => setSelectedId(node.id)}
-                  className="flex-1"
-                />
-              </section>
-              <RelationshipFilters value={filters} onChange={setFilters} />
-              <FlowTracePanel
-                activeFlowId={activeFlowId}
-                onFlowChange={setActiveFlowId}
-                onStepSelect={setSelectedId}
-                selectedNodeId={selectedId}
-              />
-            </div>
+            <GraphSidebar
+              tree={mockFileTree}
+              flows={mockFlows}
+              selectedId={selectedId}
+              onSelectNode={setSelectedId}
+              activeFlowId={activeFlowId}
+              onFlowChange={setActiveFlowId}
+              filters={filters}
+              onFiltersChange={setFilters}
+              className="space-y-3 pr-2"
+              explorerHeight="h-[300px]"
+            />
           </ScrollArea>
         ) : null}
       </aside>
 
       {/* Graph canvas */}
-      <section
-        className="relative min-w-0 flex-1 basis-auto"
-        style={{ height: "calc(100vh - 57px)", minHeight: 420 }}
-      >
+      <section className="relative min-h-0 min-w-0 flex-1">
         {nodes.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex h-full flex-1 items-center justify-center p-6">
             <EmptyState
               title="Every node is filtered out"
               description="Re-enable at least one node type in the relationship filters to draw the graph."
+              action={
+                <Button variant="outline" size="sm" onClick={resetFilters}>
+                  Reset filters
+                </Button>
+              }
             />
           </div>
         ) : (
@@ -152,28 +159,35 @@ function GraphWorkspace() {
                 nodes={nodes}
                 edges={edges}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={(id) => {
+                  setSelectedId(id);
+                  if (id && typeof window !== "undefined" && window.innerWidth < 1024) {
+                    setMobilePanelOpen(true);
+                  }
+                }}
                 traceNodeIds={traceNodeIds}
                 traceActive={traceActive}
                 onTraceToggle={(next) =>
                   setActiveFlowId(next ? (activeFlowId ?? mockFlows[0]!.id) : null)
                 }
                 onOpenSearch={() => setSearchOpen(true)}
+                onOpenSidebar={() => setMobileSidebarOpen(true)}
                 panelOpen={panelOpen}
-                onPanelToggle={() => setPanelOpen((o) => !o)}
+                onPanelToggle={handlePanelToggle}
               />
             </Suspense>
           </ClientOnly>
         )}
       </section>
 
-      {/* Right rail: node details + AI */}
+      {/* Right rail: node details + AI (Desktop) */}
       {panelOpen ? (
-        <aside className="shrink-0 border-border p-3 lg:h-full lg:w-[360px] lg:overflow-hidden lg:border-l">
-          <div className="h-full lg:overflow-hidden">
+        <aside className="hidden shrink-0 border-border p-3 lg:flex lg:h-full lg:w-[360px] lg:overflow-hidden lg:border-l">
+          <div className="h-full w-full lg:overflow-hidden">
             <NodeDetailsPanel
               node={selected}
               edges={mockGraphEdges}
+              nodesById={nodesById}
               onTrace={() => {
                 const flow = mockFlows.find((f) => f.steps.some((s) => s.nodeId === selectedId));
                 setActiveFlowId(flow?.id ?? mockFlows[0]!.id);
@@ -183,7 +197,68 @@ function GraphWorkspace() {
         </aside>
       ) : null}
 
-      <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} onSelectNode={setSelectedId} />
+      {/* Mobile Left Sheet: Structure & Filters */}
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent side="left" className="flex h-full w-[85vw] max-w-sm flex-col p-0 sm:max-w-md">
+          <SheetHeader className="border-b border-border p-4 text-left">
+            <SheetTitle className="text-base font-semibold">Repository controls</SheetTitle>
+            <SheetDescription className="text-xs text-muted-foreground">
+              File structure, relationship filters and flow tracing.
+            </SheetDescription>
+          </SheetHeader>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="p-4">
+              <GraphSidebar
+                tree={mockFileTree}
+                flows={mockFlows}
+                selectedId={selectedId}
+                onSelectNode={(nodeId) => {
+                  setSelectedId(nodeId);
+                  setMobileSidebarOpen(false);
+                }}
+                activeFlowId={activeFlowId}
+                onFlowChange={setActiveFlowId}
+                filters={filters}
+                onFiltersChange={setFilters}
+                className="space-y-3"
+                explorerHeight="h-[280px]"
+              />
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+
+      {/* Mobile Right Sheet: Node Details & AI */}
+      <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+        <SheetContent side="right" className="flex h-full w-[85vw] max-w-sm flex-col p-0 sm:max-w-md">
+          <SheetHeader className="border-b border-border p-4 text-left">
+            <SheetTitle className="text-base font-semibold">Node inspection</SheetTitle>
+            <SheetDescription className="text-xs text-muted-foreground">
+              Relationships, exported symbols and AI explanation.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 p-4">
+            <NodeDetailsPanel
+              node={selected}
+              edges={mockGraphEdges}
+              nodesById={nodesById}
+              onTrace={() => {
+                const flow = mockFlows.find((f) => f.steps.some((s) => s.nodeId === selectedId));
+                setActiveFlowId(flow?.id ?? mockFlows[0]!.id);
+                setMobilePanelOpen(false);
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <SearchPalette
+        nodes={mockGraphNodes}
+        visibleIds={visibleIds}
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        onSelectNode={setSelectedId}
+      />
     </main>
   );
 }

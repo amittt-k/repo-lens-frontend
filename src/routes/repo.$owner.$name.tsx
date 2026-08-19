@@ -1,5 +1,5 @@
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
-import { GitBranch, LayoutDashboard, Network, Waypoints } from "lucide-react";
+import { createFileRoute, Link, Outlet, type ErrorComponentProps } from "@tanstack/react-router";
+import { AlertTriangle, GitBranch, LayoutDashboard, Network, Waypoints } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { RepoUrlForm } from "@/components/repolens/RepoUrlForm";
@@ -10,8 +10,68 @@ export const Route = createFileRoute("/repo/$owner/$name")({
   // Workspace state (selection, flow, filters) lives in the URL so it survives
   // Overview <-> Graph navigation and stays shareable/reloadable.
   validateSearch: validateWorkspaceSearch,
+  errorComponent: RepoErrorComponent,
+  notFoundComponent: RepoNotFoundComponent,
   component: RepoLayout,
 });
+
+function RepoNotFoundComponent() {
+  const { owner, name } = Route.useParams();
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-6">
+      <div className="panel-surface max-w-md rounded-lg p-6 text-center">
+        <div className="mx-auto mb-3 grid size-10 place-items-center rounded-lg border border-border bg-elevated text-muted-foreground">
+          <Waypoints className="size-5 text-primary" />
+        </div>
+        <h1 className="font-mono text-base font-semibold text-foreground">Repository not found</h1>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          Could not find or load repository{" "}
+          <code className="font-mono text-primary">
+            {owner}/{name}
+          </code>
+          .
+        </p>
+        <div className="mt-5 flex justify-center gap-2">
+          <Button asChild size="sm">
+            <Link to="/">Back to home</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RepoErrorComponent({ error, reset }: ErrorComponentProps) {
+  const { owner, name } = Route.useParams();
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-6">
+      <div className="panel-surface max-w-md rounded-lg p-6 text-center">
+        <div className="mx-auto mb-3 grid size-10 place-items-center rounded-lg border border-destructive/40 bg-destructive/10 text-destructive">
+          <AlertTriangle className="size-5" />
+        </div>
+        <h1 className="font-mono text-base font-semibold text-foreground">Repository error</h1>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          An error occurred while inspecting{" "}
+          <code className="font-mono text-primary">
+            {owner}/{name}
+          </code>
+          :
+        </p>
+        <p className="mt-2 rounded border border-border bg-background/50 p-2 font-mono text-[11px] text-destructive">
+          {error.message || "Unknown error"}
+        </p>
+        <div className="mt-5 flex justify-center gap-2">
+          <Button size="sm" variant="outline" onClick={reset}>
+            Try again
+          </Button>
+          <Button asChild size="sm">
+            <Link to="/">Back to home</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function RepoLayout() {
   const { owner, name } = Route.useParams();
@@ -19,8 +79,8 @@ function RepoLayout() {
   const search = Route.useSearch();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
+    <div className="flex min-h-screen flex-col lg:h-screen lg:max-h-screen lg:overflow-hidden">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:px-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <Link to="/" className="grid size-7 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10">
@@ -71,7 +131,9 @@ function RepoLayout() {
       </header>
 
       {/* Required: nested repo routes render here. */}
-      <Outlet />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <Outlet />
+      </div>
     </div>
   );
 }

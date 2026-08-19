@@ -8,23 +8,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { mockFlows } from "@/data/mock-repo";
+import type { RepoFlow } from "@/data/mock-repo";
 import { EmptyState, PanelHeading } from "./primitives";
 
+export interface FlowTracePanelProps {
+  flows?: RepoFlow[] | undefined;
+  activeFlowId: string | null;
+  onFlowChange: (id: string | null) => void;
+  onStepSelect?: ((nodeId: string) => void) | undefined;
+  selectedNodeId?: string | null | undefined;
+  className?: string | undefined;
+}
+
 export function FlowTracePanel({
+  flows = [],
   activeFlowId,
   onFlowChange,
   onStepSelect,
   selectedNodeId,
   className,
-}: {
-  activeFlowId: string | null;
-  onFlowChange: (id: string | null) => void;
-  onStepSelect?: (nodeId: string) => void;
-  selectedNodeId?: string | null;
-  className?: string;
-}) {
-  const flow = mockFlows.find((f) => f.id === activeFlowId) ?? null;
+}: FlowTracePanelProps) {
+  const flow = flows.find((f) => f.id === activeFlowId) ?? null;
 
   return (
     <section className={cn("panel-surface flex flex-col overflow-hidden rounded-lg", className)}>
@@ -41,7 +45,7 @@ export function FlowTracePanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {mockFlows.map((f) => (
+              {flows.map((f) => (
                 <DropdownMenuItem key={f.id} onSelect={() => onFlowChange(f.id)}>
                   {f.name}
                 </DropdownMenuItem>

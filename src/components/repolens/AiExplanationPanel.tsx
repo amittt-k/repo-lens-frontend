@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,15 +22,30 @@ export function AiExplanationPanel({
   className?: string;
 }) {
   const [state, setState] = useState<"idle" | "loading" | "ready">("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearTimer() {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
 
   useEffect(() => {
+    clearTimer();
     setState("idle");
+    return () => {
+      clearTimer();
+    };
   }, [node?.id]);
 
   function explain() {
+    clearTimer();
     setState("loading");
-    const t = setTimeout(() => setState("ready"), 700);
-    return () => clearTimeout(t);
+    timerRef.current = setTimeout(() => {
+      setState("ready");
+      timerRef.current = null;
+    }, 700);
   }
 
   const body = (

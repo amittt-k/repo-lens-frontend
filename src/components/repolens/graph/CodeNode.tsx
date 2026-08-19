@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Box, Component, FileCode2, Package } from "lucide-react";
+import type { KeyboardEvent } from "react";
 
 import { cn } from "@/lib/utils";
 import type { NodeKind } from "@/data/mock-repo";
@@ -25,10 +26,23 @@ export function CodeNode({ data, selected }: NodeProps) {
   const payload = data as CodeNodePayload;
   const Icon = icons[payload.kind];
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.currentTarget.click();
+    }
+  };
+
   return (
     <div
+      tabIndex={0}
+      role="button"
+      aria-label={`${payload.label} (${payload.kind})`}
+      aria-selected={selected}
+      onKeyDown={handleKeyDown}
       className={cn(
-        "w-[200px] rounded-lg border bg-surface px-3 py-2.5 transition-opacity",
+        "w-[200px] cursor-pointer rounded-lg border bg-surface px-3 py-2.5 transition-opacity",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         kindTokens[payload.kind].border,
         selected && "focus-glow",
         payload.inTrace && "border-primary/70 bg-primary/10",

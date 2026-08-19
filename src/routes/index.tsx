@@ -42,7 +42,7 @@ const steps = [
 
 function Landing() {
   return (
-    <main className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header className="border-b border-border">
         <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3.5 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -64,46 +64,48 @@ function Landing() {
         </div>
       </header>
 
-      <section className="hero-glow relative overflow-hidden border-b border-border">
-        <div className="grid-backdrop pointer-events-none absolute inset-0 opacity-[0.18]" />
-        <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-primary">
-            <GitBranch className="size-3.5" />
-            static analysis · dependency graph
-          </p>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
-            Understand an unfamiliar repository
-            <span className="block text-muted-foreground">before you touch a single line.</span>
-          </h1>
-          <p className="mt-5 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            RepoLens turns a GitHub URL into a navigable map: file structure, code relationships, an
-            interactive graph, traced flows and explanations you can actually read.
-          </p>
-          <div className="mt-8">
-            <RepoUrlForm />
+      <main className="flex-1">
+        <section className="hero-glow relative overflow-hidden border-b border-border">
+          <div className="grid-backdrop pointer-events-none absolute inset-0 opacity-[0.18]" />
+          <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-primary">
+              <GitBranch className="size-3.5" />
+              static analysis · dependency graph
+            </p>
+            <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
+              Understand an unfamiliar repository
+              <span className="block text-muted-foreground">before you touch a single line.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              RepoLens turns a GitHub URL into a navigable map: file structure, code relationships, an
+              interactive graph, traced flows and explanations you can actually read.
+            </p>
+            <div className="mt-8">
+              <RepoUrlForm />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-        <h2 className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
-          How it reads code
-        </h2>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((s, i) => (
-            <article key={s.title} className="panel-surface rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <s.icon className="size-4 text-primary" />
-                <span className="font-mono text-[10px] tabular-nums text-muted-foreground/60">
-                  0{i + 1}
-                </span>
-              </div>
-              <h3 className="mt-3 text-sm font-medium text-foreground">{s.title}</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{s.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+          <h2 className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
+            How it reads code
+          </h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((s, i) => (
+              <article key={s.title} className="panel-surface rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <s.icon className="size-4 text-primary" />
+                  <span className="font-mono text-[10px] tabular-nums text-muted-foreground/60">
+                    0{i + 1}
+                  </span>
+                </div>
+                <h3 className="mt-3 text-sm font-medium text-foreground">{s.title}</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{s.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 sm:px-6">
@@ -116,6 +118,6 @@ function Landing() {
           </p>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }

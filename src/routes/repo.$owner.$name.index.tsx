@@ -4,14 +4,17 @@ import { ArrowRight, Network } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { AiExplanationPanel } from "@/components/repolens/AiExplanationPanel";
+import { CompositionPanel } from "@/components/repolens/CompositionPanel";
 import { FileExplorer } from "@/components/repolens/FileExplorer";
 import { FlowTracePanel } from "@/components/repolens/FlowTracePanel";
+import { HotspotsPanel } from "@/components/repolens/HotspotsPanel";
 import { PanelHeading, StatTile } from "@/components/repolens/primitives";
 import {
+  mockFileTree,
+  mockFlows,
   mockGraphEdges,
   mockGraphNodes,
   mockRepo,
-  relationLabels,
   type RelationKind,
 } from "@/data/mock-repo";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
@@ -38,7 +41,6 @@ function Overview() {
   const { selectedId, selected, setSelectedId, activeFlowId, setActiveFlowId } =
     useWorkspaceState();
 
-
   const relationCounts = (["import", "call", "export"] as RelationKind[]).map((relation) => ({
     relation,
     count: mockGraphEdges.filter((e) => e.relation === relation).length,
@@ -50,7 +52,7 @@ function Overview() {
     .slice(0, 4);
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-4 sm:px-4 sm:py-6">
+    <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-4 sm:px-4 sm:py-6 lg:overflow-y-auto">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
@@ -80,6 +82,7 @@ function Overview() {
         <section className="panel-surface flex h-[520px] flex-col overflow-hidden rounded-lg">
           <PanelHeading title="File explorer" hint={`${mockRepo.files} files indexed`} />
           <FileExplorer
+            tree={mockFileTree}
             selectedId={selectedId}
             onSelect={(node) => setSelectedId(node.id)}
             className="flex-1"
@@ -87,65 +90,13 @@ function Overview() {
         </section>
 
         <div className="grid min-w-0 gap-4">
-          <section className="panel-surface overflow-hidden rounded-lg">
-            <PanelHeading title="Composition" hint="Language and relationship mix" />
-            <div className="space-y-4 p-4">
-              <div className="space-y-2.5">
-                {mockRepo.languages.map((lang) => (
-                  <div key={lang.name}>
-                    <div className="flex items-center justify-between font-mono text-[11px]">
-                      <span className="truncate text-muted-foreground">{lang.name}</span>
-                      <span className="tabular-nums text-muted-foreground">{lang.share}%</span>
-                    </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-elevated">
-                      <div className="h-full rounded-full bg-primary/70" style={{ width: `${lang.share}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
-                {relationCounts.map((r) => (
-                  <div key={r.relation} className="rounded-md border border-border bg-background/40 px-2 py-2">
-                    <p className="truncate font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {relationLabels[r.relation]}
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold tabular-nums">{r.count}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="panel-surface overflow-hidden rounded-lg">
-            <PanelHeading title="Hotspots" hint="Most depended-upon modules" />
-            <ul className="divide-y divide-border">
-              {hotspots.map(({ node, degree }) => (
-                <li key={node.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(node.id)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-elevated"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-mono text-xs text-foreground">
-                        {node.label}
-                      </span>
-                      <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                        {node.path}
-                      </span>
-                    </span>
-                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                      {degree} inbound
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <CompositionPanel repo={mockRepo} relationCounts={relationCounts} />
+          <HotspotsPanel hotspots={hotspots} onSelectNode={(id) => setSelectedId(id)} />
         </div>
 
         <div className="grid content-start gap-4">
           <FlowTracePanel
+            flows={mockFlows}
             activeFlowId={activeFlowId}
             onFlowChange={setActiveFlowId}
             onStepSelect={(nodeId) => setSelectedId(nodeId)}

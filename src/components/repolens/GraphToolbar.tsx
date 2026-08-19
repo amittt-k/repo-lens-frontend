@@ -3,6 +3,7 @@ import {
   LayoutGrid,
   Maximize2,
   Minus,
+  PanelLeft,
   PanelRightClose,
   PanelRightOpen,
   Plus,
@@ -47,6 +48,7 @@ export interface GraphToolbarProps {
   onTraceToggle: (next: boolean) => void;
   panelOpen: boolean;
   onPanelToggle: () => void;
+  onOpenSidebar?: (() => void) | undefined;
   nodeCount: number;
   edgeCount: number;
 }
@@ -61,6 +63,7 @@ export function GraphToolbar({
   onTraceToggle,
   panelOpen,
   onPanelToggle,
+  onOpenSidebar,
   nodeCount,
   edgeCount,
 }: GraphToolbarProps) {
@@ -68,6 +71,13 @@ export function GraphToolbar({
     <TooltipProvider delayDuration={200}>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-surface/80 px-2 py-1.5 backdrop-blur">
         <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          {onOpenSidebar ? (
+            <div className="lg:hidden">
+              <ToolButton label="Open structure & filters" onClick={onOpenSidebar}>
+                <PanelLeft className="size-4" />
+              </ToolButton>
+            </div>
+          ) : null}
           <ToolButton label="Zoom in" onClick={onZoomIn}>
             <Plus className="size-4" />
           </ToolButton>

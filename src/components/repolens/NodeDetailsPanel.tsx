@@ -4,18 +4,27 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
-import { mockGraphNodes } from "@/data/mock-repo";
 import { AiExplanationPanel } from "./AiExplanationPanel";
 import { EmptyState, KindBadge, PanelHeading, RelationDot } from "./primitives";
 
-function EdgeRow({ edge, direction }: { edge: GraphEdgeData; direction: "in" | "out" }) {
+function EdgeRow({
+  edge,
+  direction,
+  nodesById,
+}: {
+  edge: GraphEdgeData;
+  direction: "in" | "out";
+  nodesById?: Record<string, GraphNodeData> | undefined;
+}) {
   const otherId = direction === "out" ? edge.target : edge.source;
-  const other = mockGraphNodes.find((n) => n.id === otherId);
+  const other = nodesById ? nodesById[otherId] : undefined;
   return (
     <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2">
       <RelationDot relation={edge.relation} />
       <span className="min-w-0">
-        <span className="block truncate font-mono text-xs text-foreground">{other?.label}</span>
+        <span className="block truncate font-mono text-xs text-foreground">
+          {other?.label ?? otherId}
+        </span>
         <span className="block truncate font-mono text-[10px] text-muted-foreground">
           {edge.symbol}
         </span>
@@ -29,15 +38,19 @@ function EdgeRow({ edge, direction }: { edge: GraphEdgeData; direction: "in" | "
   );
 }
 
+export interface NodeDetailsPanelProps {
+  node: GraphNodeData | null;
+  edges: GraphEdgeData[];
+  nodesById?: Record<string, GraphNodeData> | undefined;
+  onTrace?: () => void;
+}
+
 export function NodeDetailsPanel({
   node,
   edges,
+  nodesById,
   onTrace,
-}: {
-  node: GraphNodeData | null;
-  edges: GraphEdgeData[];
-  onTrace?: () => void;
-}) {
+}: NodeDetailsPanelProps) {
   if (!node) {
     return (
       <div className="panel-surface flex h-full flex-col overflow-hidden rounded-lg">
@@ -108,7 +121,7 @@ export function NodeDetailsPanel({
                 {outgoing.length ? (
                   <ul className="space-y-1.5">
                     {outgoing.map((e) => (
-                      <EdgeRow key={e.id} edge={e} direction="out" />
+                      <EdgeRow key={e.id} edge={e} direction="out" nodesById={nodesById} />
                     ))}
                   </ul>
                 ) : (
@@ -122,7 +135,7 @@ export function NodeDetailsPanel({
                 {incoming.length ? (
                   <ul className="space-y-1.5">
                     {incoming.map((e) => (
-                      <EdgeRow key={e.id} edge={e} direction="in" />
+                      <EdgeRow key={e.id} edge={e} direction="in" nodesById={nodesById} />
                     ))}
                   </ul>
                 ) : (
