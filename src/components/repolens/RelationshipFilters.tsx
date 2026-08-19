@@ -2,15 +2,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { NodeKind, RelationKind } from "@/data/mock-repo";
 import { kindLabels, relationLabels } from "@/data/mock-repo";
+import { allKinds, allRelations } from "@/lib/graph-tokens";
 import { PanelHeading, RelationDot } from "./primitives";
 
 export interface FilterState {
   relations: RelationKind[];
   kinds: NodeKind[];
 }
-
-export const allRelations: RelationKind[] = ["import", "call", "export"];
-export const allKinds: NodeKind[] = ["module", "component", "function", "external"];
 
 export function RelationshipFilters({
   value,
