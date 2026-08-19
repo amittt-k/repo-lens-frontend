@@ -26,6 +26,17 @@ function validateExplainNode(req) {
   return null;
 }
 
+function validateExplainFlow(req) {
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+    return "Request body is required and must be an object.";
+  }
+  const steps = Array.isArray(req.body.steps) ? req.body.steps : req.body.flow?.steps;
+  if (!steps || !Array.isArray(steps) || steps.length === 0) {
+    return "A non-empty array of flow steps is required in body.flow.steps or body.steps.";
+  }
+  return null;
+}
+
 router.post(
   "/explain/repository",
   validateRequest(validateExplainRepository),
@@ -36,6 +47,12 @@ router.post(
   "/explain/node",
   validateRequest(validateExplainNode),
   (req, res, next) => aiController.explainNode(req, res, next),
+);
+
+router.post(
+  "/explain/flow",
+  validateRequest(validateExplainFlow),
+  (req, res, next) => aiController.explainFlow(req, res, next),
 );
 
 export default router;

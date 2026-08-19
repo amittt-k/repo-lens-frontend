@@ -193,6 +193,48 @@ export class AiController {
       next(err);
     }
   }
+
+  /**
+   * POST /api/ai/explain/flow
+   * Generates a grounded technical explanation for a deterministic application flow trace.
+   */
+  async explainFlow(req, res, next) {
+    try {
+      const rawFlow = req.body.flow || {};
+      const rawSteps = Array.isArray(req.body.steps) ? req.body.steps : rawFlow.steps || [];
+      const flowId = rawFlow.id || req.body.flowId || null;
+      const name = rawFlow.name || req.body.name || (rawSteps[0]?.label ? `Flow: ${rawSteps[0].label}` : "Flow Trace");
+      const startNodeId = rawFlow.startNodeId || req.body.startNodeId || rawSteps[0]?.nodeId || null;
+
+      // 1. Normalize structured flow trace facts
+      const flowData = {
+        id: flowId,
+        name,
+        startNodeId,
+        steps: rawSteps.map((s) => ({
+          nodeId: s.nodeId || s.id,
+          label: s.label || s.name || "Unknown Step",
+          kind: s.kind || s.type || "module",
+          path: s.path || s.filePath || "",
+          relationshipType: s.relationshipType || s.relation,
+          detail: s.detail || "",
+        })),
+      };
+
+      // 2. Invoke AI service
+      const result = await this.aiService.explainFlow(flowData);
+
+      return res.status(200).json({
+        success: true,
+        flowId,
+        explanation: result.explanation,
+        model: result.model,
+        usage: result.usage || null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const aiController = new AiController();
