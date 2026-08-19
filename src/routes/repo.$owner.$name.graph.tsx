@@ -90,12 +90,6 @@ function GraphWorkspace() {
     [filters.relations, visibleIds],
   );
 
-  const traceNodeIds = useMemo(() => {
-    if (!traceMode || !flowId) return [];
-    return mockFlows.find((f) => f.id === flowId)?.steps.map((s) => s.nodeId) ?? [];
-  }, [traceMode, flowId]);
-
-  const selected = mockGraphNodes.find((n) => n.id === selectedId) ?? null;
 
   return (
     <main className="flex min-h-0 flex-1 flex-col lg:h-[calc(100vh-57px)] lg:flex-row">
