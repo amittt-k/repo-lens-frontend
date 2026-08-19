@@ -13,17 +13,12 @@ import {
 } from "@xyflow/react";
 import { useCallback, useMemo, useState } from "react";
 
-import type { GraphEdgeData, GraphNodeData, RelationKind } from "@/data/mock-repo";
+import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
+import { relationTokens } from "@/lib/graph-tokens";
 import { GraphToolbar } from "../GraphToolbar";
 import { CodeNode, type CodeNodePayload } from "./CodeNode";
 
 const nodeTypes = { code: CodeNode };
-
-const edgeColor: Record<RelationKind, string> = {
-  import: "var(--color-node-module)",
-  call: "var(--color-node-function)",
-  export: "var(--color-node-component)",
-};
 
 export interface GraphCanvasProps {
   nodes: GraphNodeData[];
