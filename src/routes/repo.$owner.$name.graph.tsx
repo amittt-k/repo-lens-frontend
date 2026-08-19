@@ -157,11 +157,10 @@ function GraphWorkspace() {
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 traceNodeIds={traceNodeIds}
-                traceMode={traceMode}
-                onTraceModeChange={(next) => {
-                  setTraceMode(next);
-                  if (next && !flowId) setFlowId(mockFlows[0]!.id);
-                }}
+                traceActive={traceActive}
+                onTraceToggle={(next) =>
+                  setActiveFlowId(next ? (activeFlowId ?? mockFlows[0]!.id) : null)
+                }
                 onOpenSearch={() => setSearchOpen(true)}
                 panelOpen={panelOpen}
                 onPanelToggle={() => setPanelOpen((o) => !o)}
