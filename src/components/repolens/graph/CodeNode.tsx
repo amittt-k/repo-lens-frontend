@@ -29,7 +29,7 @@ export function CodeNode({ data, selected }: NodeProps) {
     <div
       className={cn(
         "w-[200px] rounded-lg border bg-surface px-3 py-2.5 transition-opacity",
-        ring[payload.kind],
+        kindTokens[payload.kind].border,
         selected && "focus-glow",
         payload.inTrace && "border-primary/70 bg-primary/10",
         payload.dimmed && "opacity-25",
@@ -37,7 +37,7 @@ export function CodeNode({ data, selected }: NodeProps) {
     >
       <Handle type="target" position={Position.Left} />
       <div className="flex min-w-0 items-center gap-2">
-        <Icon className={cn("size-3.5 shrink-0", tint[payload.kind])} />
+        <Icon className={cn("size-3.5 shrink-0", kindTokens[payload.kind].text)} />
         <span className="truncate font-mono text-xs text-foreground">{payload.label}</span>
       </div>
       <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">{payload.path}</p>
