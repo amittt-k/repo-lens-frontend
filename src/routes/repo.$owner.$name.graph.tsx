@@ -7,14 +7,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileExplorer } from "@/components/repolens/FileExplorer";
 import { FlowTracePanel } from "@/components/repolens/FlowTracePanel";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
-import {
-  RelationshipFilters,
-  type FilterState,
-} from "@/components/repolens/RelationshipFilters";
+import { RelationshipFilters } from "@/components/repolens/RelationshipFilters";
 import { SearchPalette } from "@/components/repolens/SearchPalette";
 import { EmptyState, PanelHeading } from "@/components/repolens/primitives";
 import { mockFlows, mockGraphEdges, mockGraphNodes } from "@/data/mock-repo";
-import { allKinds, allRelations } from "@/lib/graph-tokens";
+import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 
 // React Flow measures real DOM, so the canvas is loaded on the client only.
 const GraphCanvas = lazy(() => import("@/components/repolens/graph/GraphCanvas"));
@@ -45,13 +42,17 @@ function CanvasFallback() {
 }
 
 function GraphWorkspace() {
-  const [selectedId, setSelectedId] = useState<string | null>("n-cart-store");
-  const [filters, setFilters] = useState<FilterState>({
-    relations: allRelations,
-    kinds: allKinds,
-  });
-  const [traceMode, setTraceMode] = useState(false);
-  const [flowId, setFlowId] = useState<string | null>(null);
+  const {
+    selectedId,
+    selected,
+    setSelectedId,
+    activeFlowId,
+    setActiveFlowId,
+    traceActive,
+    traceNodeIds,
+    filters,
+    setFilters,
+  } = useWorkspaceState();
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -86,12 +87,6 @@ function GraphWorkspace() {
     [filters.relations, visibleIds],
   );
 
-  const traceNodeIds = useMemo(() => {
-    if (!traceMode || !flowId) return [];
-    return mockFlows.find((f) => f.id === flowId)?.steps.map((s) => s.nodeId) ?? [];
-  }, [traceMode, flowId]);
-
-  const selected = mockGraphNodes.find((n) => n.id === selectedId) ?? null;
 
   return (
     <main className="flex min-h-0 flex-1 flex-col lg:h-[calc(100vh-57px)] lg:flex-row">
@@ -128,11 +123,8 @@ function GraphWorkspace() {
               </section>
               <RelationshipFilters value={filters} onChange={setFilters} />
               <FlowTracePanel
-                activeFlowId={flowId}
-                onFlowChange={(id) => {
-                  setFlowId(id);
-                  setTraceMode(Boolean(id));
-                }}
+                activeFlowId={activeFlowId}
+                onFlowChange={setActiveFlowId}
                 onStepSelect={setSelectedId}
                 selectedNodeId={selectedId}
               />
@@ -162,11 +154,10 @@ function GraphWorkspace() {
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 traceNodeIds={traceNodeIds}
-                traceMode={traceMode}
-                onTraceModeChange={(next) => {
-                  setTraceMode(next);
-                  if (next && !flowId) setFlowId(mockFlows[0]!.id);
-                }}
+                traceActive={traceActive}
+                onTraceToggle={(next) =>
+                  setActiveFlowId(next ? (activeFlowId ?? mockFlows[0]!.id) : null)
+                }
                 onOpenSearch={() => setSearchOpen(true)}
                 panelOpen={panelOpen}
                 onPanelToggle={() => setPanelOpen((o) => !o)}
@@ -185,8 +176,7 @@ function GraphWorkspace() {
               edges={mockGraphEdges}
               onTrace={() => {
                 const flow = mockFlows.find((f) => f.steps.some((s) => s.nodeId === selectedId));
-                setFlowId(flow?.id ?? mockFlows[0]!.id);
-                setTraceMode(true);
+                setActiveFlowId(flow?.id ?? mockFlows[0]!.id);
               }}
             />
           </div>

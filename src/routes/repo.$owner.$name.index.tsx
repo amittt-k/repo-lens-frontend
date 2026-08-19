@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Network } from "lucide-react";
-import { useState } from "react";
+
 
 import { Button } from "@/components/ui/button";
 import { AiExplanationPanel } from "@/components/repolens/AiExplanationPanel";
@@ -14,6 +14,7 @@ import {
   relationLabels,
   type RelationKind,
 } from "@/data/mock-repo";
+import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 
 export const Route = createFileRoute("/repo/$owner/$name/")({
   head: ({ params }) => {
@@ -34,10 +35,9 @@ export const Route = createFileRoute("/repo/$owner/$name/")({
 function Overview() {
   const { owner, name } = Route.useParams();
   const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [flowId, setFlowId] = useState<string | null>("flow-checkout");
+  const { selectedId, selected, setSelectedId, activeFlowId, setActiveFlowId } =
+    useWorkspaceState();
 
-  const selected = mockGraphNodes.find((n) => n.id === selectedId) ?? null;
 
   const relationCounts = (["import", "call", "export"] as RelationKind[]).map((relation) => ({
     relation,
@@ -61,7 +61,7 @@ function Overview() {
           </p>
         </div>
         <Button asChild size="sm" className="shrink-0 gap-1.5">
-          <Link to="/repo/$owner/$name/graph" params={{ owner, name }}>
+          <Link to="/repo/$owner/$name/graph" params={{ owner, name }} search={(prev) => prev}>
             <Network className="size-3.5" />
             <span className="hidden sm:inline">Open graph</span>
             <ArrowRight className="size-3.5" />
@@ -146,8 +146,8 @@ function Overview() {
 
         <div className="grid content-start gap-4">
           <FlowTracePanel
-            activeFlowId={flowId}
-            onFlowChange={setFlowId}
+            activeFlowId={activeFlowId}
+            onFlowChange={setActiveFlowId}
             onStepSelect={(nodeId) => setSelectedId(nodeId)}
             selectedNodeId={selectedId}
           />
@@ -155,7 +155,13 @@ function Overview() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate({ to: "/repo/$owner/$name/graph", params: { owner, name } })}
+            onClick={() =>
+              navigate({
+                to: "/repo/$owner/$name/graph",
+                params: { owner, name },
+                search: (prev) => prev,
+              })
+            }
           >
             Inspect in graph workspace
           </Button>

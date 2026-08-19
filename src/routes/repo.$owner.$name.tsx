@@ -4,13 +4,19 @@ import { GitBranch, LayoutDashboard, Network, Waypoints } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RepoUrlForm } from "@/components/repolens/RepoUrlForm";
 import { MockBadge } from "@/components/repolens/primitives";
+import { validateWorkspaceSearch } from "@/hooks/useWorkspaceState";
 
 export const Route = createFileRoute("/repo/$owner/$name")({
+  // Workspace state (selection, flow, filters) lives in the URL so it survives
+  // Overview <-> Graph navigation and stays shareable/reloadable.
+  validateSearch: validateWorkspaceSearch,
   component: RepoLayout,
 });
 
 function RepoLayout() {
   const { owner, name } = Route.useParams();
+  // Carry workspace search params across the Overview/Graph tabs.
+  const search = Route.useSearch();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -38,6 +44,7 @@ function RepoLayout() {
               <Link
                 to="/repo/$owner/$name"
                 params={{ owner, name }}
+                search={search}
                 activeOptions={{ exact: true }}
                 activeProps={{ className: "bg-elevated text-foreground" }}
               >
@@ -49,6 +56,7 @@ function RepoLayout() {
               <Link
                 to="/repo/$owner/$name/graph"
                 params={{ owner, name }}
+                search={search}
                 activeProps={{ className: "bg-elevated text-foreground" }}
               >
                 <Network className="size-3.5" />

@@ -26,8 +26,8 @@ export interface GraphCanvasProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   traceNodeIds: string[];
-  traceMode: boolean;
-  onTraceModeChange: (next: boolean) => void;
+  traceActive: boolean;
+  onTraceToggle: (next: boolean) => void;
   onOpenSearch: () => void;
   panelOpen: boolean;
   onPanelToggle: () => void;
@@ -53,10 +53,10 @@ function Canvas(props: GraphCanvasProps) {
           kind: n.kind,
           loc: n.loc,
           inTrace: props.traceNodeIds.includes(n.id),
-          dimmed: props.traceMode && props.traceNodeIds.length > 0 && !props.traceNodeIds.includes(n.id),
+          dimmed: props.traceActive && props.traceNodeIds.length > 0 && !props.traceNodeIds.includes(n.id),
         } satisfies CodeNodePayload,
       })),
-    [props.nodes, props.selectedId, props.traceNodeIds, props.traceMode, layoutSeed],
+    [props.nodes, props.selectedId, props.traceNodeIds, props.traceActive, layoutSeed],
   );
 
   const rfEdges = useMemo<Edge[]>(
@@ -64,7 +64,7 @@ function Canvas(props: GraphCanvasProps) {
       props.edges.map((e) => {
         const inTrace =
           props.traceNodeIds.includes(e.source) && props.traceNodeIds.includes(e.target);
-        const dimmed = props.traceMode && props.traceNodeIds.length > 0 && !inTrace;
+        const dimmed = props.traceActive && props.traceNodeIds.length > 0 && !inTrace;
         return {
           id: e.id,
           source: e.source,
@@ -85,7 +85,7 @@ function Canvas(props: GraphCanvasProps) {
           labelBgStyle: { fill: "var(--color-background)", opacity: dimmed ? 0 : 0.9 },
         } satisfies Edge;
       }),
-    [props.edges, props.traceNodeIds, props.traceMode],
+    [props.edges, props.traceNodeIds, props.traceActive],
   );
 
   const focusNode = useCallback(
@@ -104,8 +104,8 @@ function Canvas(props: GraphCanvasProps) {
         onFit={() => fitView({ duration: 300, padding: 0.2 })}
         onRelayout={() => setLayoutSeed((s) => (s === 0 ? 1 : 0))}
         onOpenSearch={props.onOpenSearch}
-        traceMode={props.traceMode}
-        onTraceModeChange={props.onTraceModeChange}
+        traceActive={props.traceActive}
+        onTraceToggle={props.onTraceToggle}
         panelOpen={props.panelOpen}
         onPanelToggle={props.onPanelToggle}
         nodeCount={props.nodes.length}

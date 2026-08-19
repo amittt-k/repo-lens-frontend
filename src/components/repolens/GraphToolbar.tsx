@@ -43,8 +43,8 @@ export interface GraphToolbarProps {
   onFit: () => void;
   onRelayout: () => void;
   onOpenSearch: () => void;
-  traceMode: boolean;
-  onTraceModeChange: (next: boolean) => void;
+  traceActive: boolean;
+  onTraceToggle: (next: boolean) => void;
   panelOpen: boolean;
   onPanelToggle: () => void;
   nodeCount: number;
@@ -57,8 +57,8 @@ export function GraphToolbar({
   onFit,
   onRelayout,
   onOpenSearch,
-  traceMode,
-  onTraceModeChange,
+  traceActive,
+  onTraceToggle,
   panelOpen,
   onPanelToggle,
   nodeCount,
@@ -87,8 +87,8 @@ export function GraphToolbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Toggle
-                pressed={traceMode}
-                onPressedChange={onTraceModeChange}
+                pressed={traceActive}
+                onPressedChange={onTraceToggle}
                 size="sm"
                 aria-label="Flow trace mode"
                 className="h-8 gap-1.5 px-2 font-mono text-[11px] uppercase tracking-wider data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
