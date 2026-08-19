@@ -1,18 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Check, Loader2, Waypoints } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { ErrorState, MockBadge } from "@/components/repolens/primitives";
+import { ErrorState } from "@/components/repolens/primitives";
+import { useAnalyzeRepository } from "@/hooks/useRepositoryData";
 
 const searchSchema = z.object({
   owner: z.string().default("vercel"),
   repo: z.string().default("commerce-kit"),
-  /** `?fail=1` renders the analysis error state for UI review. */
-  fail: z.coerce.boolean().optional(),
+  url: z.string().optional(),
 });
 
 export const Route = createFileRoute("/analyzing")({
@@ -30,30 +29,55 @@ export const Route = createFileRoute("/analyzing")({
 });
 
 const STAGES = [
-  "Resolving repository metadata",
-  "Reading file & folder structure",
-  "Extracting code relationships",
-  "Building dependency graph",
-  "Preparing workspace",
+  "Validating & fetching repository",
+  "Reading file structure & source code",
+  "Extracting JavaScript/TypeScript AST symbols",
+  "Resolving dependencies & imports",
+  "Analyzing symbol relationships & API routes",
+  "Building normalized graph",
 ];
 
 function Analyzing() {
-  const { owner, repo, fail } = Route.useSearch();
+  const { owner, repo, url: customUrl } = Route.useSearch();
   const navigate = useNavigate();
   const [stage, setStage] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const analyzeMutation = useAnalyzeRepository();
+  const hasTriggeredRef = useRef(false);
+
+  const targetUrl = customUrl || `https://github.com/${owner}/${repo}`;
 
   useEffect(() => {
-    if (fail) return;
-    if (stage >= STAGES.length) {
-      const t = setTimeout(
-        () => navigate({ to: "/repo/$owner/$name", params: { owner, name: repo } }),
-        350,
-      );
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(() => setStage((s) => s + 1), 550);
-    return () => clearTimeout(t);
-  }, [stage, fail, navigate, owner, repo]);
+    if (hasTriggeredRef.current) return;
+    hasTriggeredRef.current = true;
+
+    // Advance stage indicator every 400ms while request is in-flight
+    const interval = setInterval(() => {
+      setStage((s) => Math.min(s + 1, STAGES.length - 2));
+    }, 450);
+
+    analyzeMutation.mutate(targetUrl, {
+      onSuccess: (data) => {
+        clearInterval(interval);
+        setStage(STAGES.length);
+        const repoId = data.repository.id;
+        setTimeout(() => {
+          navigate({
+            to: "/repo/$owner/$name",
+            params: { owner, name: repo },
+            search: { repoId },
+          });
+        }, 500);
+      },
+      onError: (err: any) => {
+        clearInterval(interval);
+        setErrorMessage(err.message || "Failed to analyze repository.");
+      },
+    });
+
+    return () => clearInterval(interval);
+  }, [targetUrl, owner, repo, navigate]);
 
   const pct = Math.round((Math.min(stage, STAGES.length) / STAGES.length) * 100);
 
@@ -69,14 +93,13 @@ function Analyzing() {
               {owner}/{repo}
             </span>
           </div>
-          <MockBadge />
         </div>
 
-        {fail ? (
+        {errorMessage ? (
           <ErrorState
             title="Analysis could not complete"
-            description="This is the error state placeholder. In the real product it covers private repositories, rate limits and unsupported languages."
-            onRetry={() => navigate({ to: "/", search: {} })}
+            description={errorMessage}
+            onRetry={() => navigate({ to: "/" })}
             retryLabel="Back to start"
           />
         ) : (
@@ -119,19 +142,12 @@ function Analyzing() {
               })}
             </ol>
             <p className="mt-5 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Loading state only — the sequence is timed in the UI, no repository is being read.
+              Executing static analysis pipeline: AST extraction, dependency resolution, symbol relationships, and graph construction.
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2 h-7 text-xs"
-              onClick={() => navigate({ to: "/analyzing", search: { owner, repo, fail: true } })}
-            >
-              Preview error state
-            </Button>
           </div>
         )}
       </div>
     </main>
   );
 }
+

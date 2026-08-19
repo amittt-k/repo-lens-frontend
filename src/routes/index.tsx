@@ -110,14 +110,14 @@ function Landing() {
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 sm:px-6">
           <p className="font-mono text-[11px] text-muted-foreground">
-            RepoLens · frontend foundation build
+            RepoLens · static repository analysis engine
           </p>
           <p className="max-w-md text-[11px] leading-relaxed text-muted-foreground/70">
-            No GitHub integration, analysis engine or backend is wired up in this build. Every graph
-            and explanation below comes from static fixtures.
+            Powered by static JavaScript/TypeScript AST parsing, dependency resolution, symbol relationship extraction, and graph modeling.
           </p>
         </div>
       </footer>
     </div>
   );
 }
+

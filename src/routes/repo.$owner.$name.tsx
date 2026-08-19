@@ -96,8 +96,9 @@ function RepoLayout() {
                 <GitBranch className="size-3" /> main
               </p>
             </div>
-            <MockBadge className="hidden md:inline-flex" />
+            {!search.repoId ? <MockBadge className="hidden md:inline-flex" /> : null}
           </div>
+
 
           <nav className="flex shrink-0 items-center gap-1">
             <Button asChild variant="ghost" size="sm" className="gap-1.5">

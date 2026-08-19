@@ -5,10 +5,12 @@ import type { FilterState } from "@/components/repolens/RelationshipFilters";
 import {
   mockFlows,
   mockGraphNodes,
+  type GraphNodeData,
   type NodeKind,
   type RelationKind,
 } from "@/data/mock-repo";
 import { allKinds, allRelations } from "@/lib/graph-tokens";
+
 
 /**
  * Workspace state for the repo routes lives in the URL so a selection survives
@@ -22,6 +24,7 @@ export interface WorkspaceSearch {
   flow?: string | undefined;
   kinds?: string | undefined;
   relations?: string | undefined;
+  repoId?: string | undefined;
 }
 
 function readString(value: unknown): string | undefined {
@@ -34,6 +37,7 @@ export function validateWorkspaceSearch(search: Record<string, unknown>): Worksp
     flow: readString(search["flow"]),
     kinds: readString(search["kinds"]),
     relations: readString(search["relations"]),
+    repoId: readString(search["repoId"]),
   };
 }
 
@@ -52,7 +56,7 @@ function encodeList<T extends string>(list: T[], allowed: T[]): string | undefin
   return list.join(",");
 }
 
-export function useWorkspaceState() {
+export function useWorkspaceState(customNodes?: GraphNodeData[]) {
   const search = useSearch({ from: "/repo/$owner/$name" });
   const navigate = useNavigate();
 
@@ -67,12 +71,14 @@ export function useWorkspaceState() {
     [navigate],
   );
 
+  const effectiveNodes = customNodes || mockGraphNodes;
+
   const nodesById = useMemo(
-    () => Object.fromEntries(mockGraphNodes.map((n) => [n.id, n])),
-    [],
+    () => Object.fromEntries(effectiveNodes.map((n) => [n.id, n])),
+    [effectiveNodes],
   );
 
-  const selectedId = search.node && nodesById[search.node] ? search.node : null;
+  const selectedId = search.node ? search.node : null;
   const selected = selectedId ? (nodesById[selectedId] ?? null) : null;
 
   const activeFlowId = search.flow && mockFlows.some((f) => f.id === search.flow) ? search.flow : null;
@@ -129,5 +135,7 @@ export function useWorkspaceState() {
     setFilters,
     resetFilters,
     nodesById,
+    repoId: search.repoId,
   };
 }
+

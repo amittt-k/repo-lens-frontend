@@ -143,11 +143,12 @@ export function FileExplorer({
           ) : (
             <EmptyState
               title="No matching files"
-              description="Nothing in the mock tree matches that filter. Clear it to see the full structure."
+              description="No files found matching that filter. Clear the search to see the full repository structure."
             />
           )}
         </div>
       </ScrollArea>
+
       <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
         <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           structure

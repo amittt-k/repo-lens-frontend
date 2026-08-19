@@ -36,9 +36,10 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
     }
     setError(null);
     setPending(true);
+    const fullUrl = `https://github.com/${match[1]}/${match[2]}`;
     navigate({
       to: "/analyzing",
-      search: { owner: match[1], repo: match[2] },
+      search: { owner: match[1], repo: match[2], url: fullUrl },
     });
   }
 
@@ -89,10 +90,11 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Validation is shape-only in this build. No repository is fetched.
+            Point at any public GitHub repository to extract ASTs, dependencies, and code relationships.
           </p>
         )}
       </div>
+
 
       {!compact ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -15,8 +15,9 @@ import { GraphSidebar } from "@/components/repolens/GraphSidebar";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
 import { SearchPalette } from "@/components/repolens/SearchPalette";
 import { EmptyState } from "@/components/repolens/primitives";
-import { mockFileTree, mockFlows, mockGraphEdges, mockGraphNodes } from "@/data/mock-repo";
+import type { GraphEdgeData, GraphNodeData, NodeKind, RelationKind } from "@/data/mock-repo";
 import { useGraphShortcuts } from "@/hooks/useGraphShortcuts";
+import { useRepositoryFiles, useRepositoryGraph } from "@/hooks/useRepositoryData";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 
 // React Flow measures real DOM, so the canvas is loaded on the client only.
@@ -49,6 +50,63 @@ function CanvasFallback() {
 
 function GraphWorkspace() {
   const { owner, name } = Route.useParams();
+  const { repoId } = useWorkspaceState();
+
+  const { data: graphData, isLoading: graphLoading } = useRepositoryGraph(repoId);
+  const { data: fileTree } = useRepositoryFiles(repoId);
+
+  const mappedNodes: GraphNodeData[] = useMemo(() => {
+    if (!graphData?.nodes) return [];
+    const cols = 5;
+    return graphData.nodes.map((n, i) => {
+      let kind: NodeKind = "module";
+      if (n.type === "component") kind = "component";
+      else if (n.type === "function" || n.type === "method") kind = "function";
+      else if (n.type === "package") kind = "external";
+      else kind = "module";
+
+      const x = (i % cols) * 320 + 50;
+      const y = Math.floor(i / cols) * 180 + 50;
+
+      const nData = (n.data || {}) as Record<string, any>;
+      return {
+        id: n.id,
+        label: n.label,
+        path: nData["filePath"] || "",
+        kind,
+        loc: nData["loc"] || 0,
+        exports: [],
+        imports: [],
+        summary: `${n.type} in ${nData["filePath"] || "repository"}`,
+        position: { x, y },
+      };
+    });
+  }, [graphData]);
+
+
+  const mappedEdges: GraphEdgeData[] = useMemo(() => {
+    if (!graphData?.edges) return [];
+    return graphData.edges.map((e) => {
+      let relation: RelationKind = "import";
+      const relUpper = (e.relationshipType || "").toUpperCase();
+      if (relUpper === "CALLS" || relUpper === "CALLS_API" || relUpper === "HANDLES_ROUTE") {
+        relation = "call";
+      } else if (relUpper === "EXPORTS") {
+        relation = "export";
+      } else {
+        relation = "import";
+      }
+
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        relation,
+        symbol: e.relationshipType,
+      };
+    });
+  }, [graphData]);
+
   const {
     selectedId,
     selected,
@@ -61,7 +119,8 @@ function GraphWorkspace() {
     setFilters,
     resetFilters,
     nodesById,
-  } = useWorkspaceState();
+  } = useWorkspaceState(mappedNodes);
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -71,19 +130,19 @@ function GraphWorkspace() {
   useGraphShortcuts({ onOpenSearch: () => setSearchOpen(true) });
 
   const nodes = useMemo(
-    () => mockGraphNodes.filter((n) => filters.kinds.includes(n.kind)),
-    [filters.kinds],
+    () => mappedNodes.filter((n) => filters.kinds.includes(n.kind)),
+    [mappedNodes, filters.kinds],
   );
   const visibleIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
   const edges = useMemo(
     () =>
-      mockGraphEdges.filter(
+      mappedEdges.filter(
         (e) =>
           filters.relations.includes(e.relation) &&
           visibleIds.has(e.source) &&
           visibleIds.has(e.target),
       ),
-    [filters.relations, visibleIds],
+    [mappedEdges, filters.relations, visibleIds],
   );
 
   const handlePanelToggle = () => {
@@ -123,8 +182,8 @@ function GraphWorkspace() {
         {sidebarOpen ? (
           <ScrollArea className="min-h-0 flex-1">
             <GraphSidebar
-              tree={mockFileTree}
-              flows={mockFlows}
+              tree={(fileTree as any) || []}
+              flows={[]}
               selectedId={selectedId}
               onSelectNode={setSelectedId}
               activeFlowId={activeFlowId}
@@ -140,15 +199,26 @@ function GraphWorkspace() {
 
       {/* Graph canvas */}
       <section className="relative min-h-0 min-w-0 flex-1">
-        {nodes.length === 0 ? (
+        {graphLoading ? (
+          <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-4 animate-spin text-primary" />
+            Loading graph topology from backend…
+          </div>
+        ) : nodes.length === 0 ? (
           <div className="flex h-full flex-1 items-center justify-center p-6">
             <EmptyState
-              title="Every node is filtered out"
-              description="Re-enable at least one node type in the relationship filters to draw the graph."
+              title={mappedNodes.length === 0 ? "No graph nodes discovered" : "Every node is filtered out"}
+              description={
+                mappedNodes.length === 0
+                  ? "This repository has no supported AST symbols or modules in its static analysis graph."
+                  : "Re-enable at least one node type in the relationship filters to draw the graph."
+              }
               action={
-                <Button variant="outline" size="sm" onClick={resetFilters}>
-                  Reset filters
-                </Button>
+                mappedNodes.length > 0 ? (
+                  <Button variant="outline" size="sm" onClick={resetFilters}>
+                    Reset filters
+                  </Button>
+                ) : undefined
               }
             />
           </div>
@@ -168,7 +238,7 @@ function GraphWorkspace() {
                 traceNodeIds={traceNodeIds}
                 traceActive={traceActive}
                 onTraceToggle={(next) =>
-                  setActiveFlowId(next ? (activeFlowId ?? mockFlows[0]!.id) : null)
+                  setActiveFlowId(next ? (activeFlowId ?? null) : null)
                 }
                 onOpenSearch={() => setSearchOpen(true)}
                 onOpenSidebar={() => setMobileSidebarOpen(true)}
@@ -186,12 +256,8 @@ function GraphWorkspace() {
           <div className="h-full w-full lg:overflow-hidden">
             <NodeDetailsPanel
               node={selected}
-              edges={mockGraphEdges}
+              edges={mappedEdges}
               nodesById={nodesById}
-              onTrace={() => {
-                const flow = mockFlows.find((f) => f.steps.some((s) => s.nodeId === selectedId));
-                setActiveFlowId(flow?.id ?? mockFlows[0]!.id);
-              }}
             />
           </div>
         </aside>
@@ -209,8 +275,8 @@ function GraphWorkspace() {
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-4">
               <GraphSidebar
-                tree={mockFileTree}
-                flows={mockFlows}
+                tree={(fileTree as any) || []}
+                flows={[]}
                 selectedId={selectedId}
                 onSelectNode={(nodeId) => {
                   setSelectedId(nodeId);
@@ -240,20 +306,15 @@ function GraphWorkspace() {
           <div className="min-h-0 flex-1 p-4">
             <NodeDetailsPanel
               node={selected}
-              edges={mockGraphEdges}
+              edges={mappedEdges}
               nodesById={nodesById}
-              onTrace={() => {
-                const flow = mockFlows.find((f) => f.steps.some((s) => s.nodeId === selectedId));
-                setActiveFlowId(flow?.id ?? mockFlows[0]!.id);
-                setMobilePanelOpen(false);
-              }}
             />
           </div>
         </SheetContent>
       </Sheet>
 
       <SearchPalette
-        nodes={mockGraphNodes}
+        nodes={mappedNodes}
         visibleIds={visibleIds}
         open={searchOpen}
         onOpenChange={setSearchOpen}
@@ -262,3 +323,4 @@ function GraphWorkspace() {
     </main>
   );
 }
+

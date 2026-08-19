@@ -1,8 +1,11 @@
-import type { GraphNodeData } from "@/data/mock-repo";
 import { PanelHeading } from "./primitives";
 
 export interface HotspotItem {
-  node: GraphNodeData;
+  node: {
+    id: string;
+    label: string;
+    path?: string;
+  };
   degree: number;
 }
 
@@ -11,6 +14,7 @@ export interface HotspotsPanelProps {
   onSelectNode?: ((nodeId: string) => void) | undefined;
   className?: string | undefined;
 }
+
 
 export function HotspotsPanel({ hotspots, onSelectNode, className }: HotspotsPanelProps) {
   return (
