@@ -3,10 +3,10 @@ import { useCallback, useMemo } from "react";
 
 import type { FilterState } from "@/components/repolens/RelationshipFilters";
 import {
-  mockFlows,
   mockGraphNodes,
   type GraphNodeData,
 } from "@/data/mock-repo";
+
 import {
   allKinds,
   allRelations,
@@ -90,8 +90,8 @@ export function useWorkspaceState(customNodes?: GraphNodeData[]) {
   const selectedId = search.node ? search.node : null;
   const selected = selectedId ? (nodesById[selectedId] ?? null) : null;
 
-  const activeFlowId = search.flow && mockFlows.some((f) => f.id === search.flow) ? search.flow : null;
-  const activeFlow = mockFlows.find((f) => f.id === activeFlowId) ?? null;
+  const activeFlowId = search.flow ? search.flow : null;
+
 
   const filters = useMemo<FilterState>(
     () => ({
@@ -127,10 +127,6 @@ export function useWorkspaceState(customNodes?: GraphNodeData[]) {
 
   // Tracing is on exactly when a flow is active — there is no separate flag.
   const traceActive = activeFlowId !== null;
-  const traceNodeIds = useMemo(
-    () => activeFlow?.steps.map((s) => s.nodeId) ?? [],
-    [activeFlow],
-  );
 
   return {
     selectedId,
@@ -139,7 +135,6 @@ export function useWorkspaceState(customNodes?: GraphNodeData[]) {
     activeFlowId,
     setActiveFlowId,
     traceActive,
-    traceNodeIds,
     filters,
     setFilters,
     resetFilters,
@@ -147,4 +142,5 @@ export function useWorkspaceState(customNodes?: GraphNodeData[]) {
     repoId: search.repoId,
   };
 }
+
 

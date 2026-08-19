@@ -19,6 +19,7 @@ import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
 import { useGraphShortcuts } from "@/hooks/useGraphShortcuts";
 import { useRepositoryFiles, useRepositoryGraph } from "@/hooks/useRepositoryData";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
+import { discoverRepositoryFlows, traceFlowFromNode } from "@/utils/flowTracing";
 
 // React Flow measures real DOM, so the canvas is loaded on the client only.
 const GraphCanvas = lazy(() => import("@/components/repolens/graph/GraphCanvas"));
@@ -113,12 +114,25 @@ function GraphWorkspace() {
     activeFlowId,
     setActiveFlowId,
     traceActive,
-    traceNodeIds,
     filters,
     setFilters,
     resetFilters,
     nodesById,
   } = useWorkspaceState(mappedNodes);
+
+  // Discover candidate repository flows and compute active flow path
+  const discoveredFlows = useMemo(() => {
+    return discoverRepositoryFlows(mappedNodes, mappedEdges);
+  }, [mappedNodes, mappedEdges]);
+
+  const activeFlow = useMemo(() => {
+    if (!activeFlowId) return null;
+    return traceFlowFromNode(activeFlowId, mappedNodes, mappedEdges);
+  }, [activeFlowId, mappedNodes, mappedEdges]);
+
+  const traceNodeIds = useMemo(() => {
+    return activeFlow ? activeFlow.steps.map((s) => s.nodeId) : [];
+  }, [activeFlow]);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -165,7 +179,7 @@ function GraphWorkspace() {
         {owner}/{name} dependency graph workspace
       </h1>
 
-      {/* Left rail: structure + filters (Desktop) */}
+      {/* Left rail: structure + filters + flows (Desktop) */}
       <aside
         className={`hidden shrink-0 flex-col gap-3 border-border p-3 lg:flex lg:h-full lg:overflow-hidden lg:border-r ${
           sidebarOpen ? "lg:w-[320px]" : "lg:w-[60px]"
@@ -189,7 +203,8 @@ function GraphWorkspace() {
           <ScrollArea className="min-h-0 flex-1">
             <GraphSidebar
               tree={(fileTree as any) || []}
-              flows={[]}
+              flows={discoveredFlows}
+              activeFlow={activeFlow}
               selectedId={selectedId}
               onSelectNode={setSelectedId}
               activeFlowId={activeFlowId}
@@ -197,7 +212,7 @@ function GraphWorkspace() {
               filters={filters as any}
               onFiltersChange={setFilters as any}
               className="space-y-3 pr-2"
-              explorerHeight="h-[300px]"
+              explorerHeight="h-[260px]"
             />
           </ScrollArea>
         ) : null}
@@ -248,7 +263,9 @@ function GraphWorkspace() {
                 traceNodeIds={traceNodeIds}
                 traceActive={traceActive}
                 onTraceToggle={(next) =>
-                  setActiveFlowId(next ? (activeFlowId ?? null) : null)
+                  setActiveFlowId(
+                    next ? selectedId || discoveredFlows[0]?.startNodeId || null : null,
+                  )
                 }
                 onOpenSearch={() => setSearchOpen(true)}
                 onOpenSidebar={() => setMobileSidebarOpen(true)}
@@ -260,7 +277,7 @@ function GraphWorkspace() {
         )}
       </section>
 
-      {/* Right rail: node details + AI (Desktop) */}
+      {/* Right rail: node details + inspector (Desktop) */}
       {panelOpen ? (
         <aside className="hidden shrink-0 border-border p-3 lg:flex lg:h-full lg:w-[360px] lg:overflow-hidden lg:border-l">
           <div className="h-full w-full lg:overflow-hidden">
@@ -269,12 +286,17 @@ function GraphWorkspace() {
               edges={mappedEdges}
               nodesById={nodesById}
               onSelectNode={setSelectedId}
+              onTrace={() => {
+                if (selectedId) {
+                  setActiveFlowId(selectedId);
+                }
+              }}
             />
           </div>
         </aside>
       ) : null}
 
-      {/* Mobile Left Sheet: Structure & Filters */}
+      {/* Mobile Left Sheet: Structure & Filters & Flows */}
       <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
         <SheetContent
           side="left"
@@ -283,14 +305,15 @@ function GraphWorkspace() {
           <SheetHeader className="border-b border-border p-4 text-left">
             <SheetTitle className="text-base font-semibold">Repository controls</SheetTitle>
             <SheetDescription className="text-xs text-muted-foreground">
-              File structure, relationship filters and code navigation.
+              File structure, relationship filters and flow tracing.
             </SheetDescription>
           </SheetHeader>
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-4">
               <GraphSidebar
                 tree={(fileTree as any) || []}
-                flows={[]}
+                flows={discoveredFlows}
+                activeFlow={activeFlow}
                 selectedId={selectedId}
                 onSelectNode={(nodeId) => {
                   setSelectedId(nodeId);
@@ -301,14 +324,14 @@ function GraphWorkspace() {
                 filters={filters as any}
                 onFiltersChange={setFilters as any}
                 className="space-y-3"
-                explorerHeight="h-[280px]"
+                explorerHeight="h-[240px]"
               />
             </div>
           </ScrollArea>
         </SheetContent>
       </Sheet>
 
-      {/* Mobile Right Sheet: Node Details & AI */}
+      {/* Mobile Right Sheet: Node Details & Inspector */}
       <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
         <SheetContent
           side="right"
@@ -317,7 +340,7 @@ function GraphWorkspace() {
           <SheetHeader className="border-b border-border p-4 text-left">
             <SheetTitle className="text-base font-semibold">Node inspection</SheetTitle>
             <SheetDescription className="text-xs text-muted-foreground">
-              Relationships, entity details and source locations.
+              Relationships, entity details and flow tracing.
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 p-4">
@@ -328,11 +351,16 @@ function GraphWorkspace() {
               onSelectNode={(nodeId) => {
                 setSelectedId(nodeId);
               }}
+              onTrace={() => {
+                if (selectedId) {
+                  setActiveFlowId(selectedId);
+                  setMobilePanelOpen(false);
+                }
+              }}
             />
           </div>
         </SheetContent>
       </Sheet>
-
 
       <SearchPalette
         nodes={mappedNodes}

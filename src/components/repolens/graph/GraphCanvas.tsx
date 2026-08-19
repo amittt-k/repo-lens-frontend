@@ -95,6 +95,16 @@ function mapNodes(
   });
 }
 
+function isEdgeInTrace(edge: GraphEdgeData, traceIds: string[]): boolean {
+  if (traceIds.length < 2) return false;
+  for (let i = 0; i < traceIds.length - 1; i++) {
+    if (traceIds[i] === edge.source && traceIds[i + 1] === edge.target) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function mapEdges(
   sourceEdges: GraphEdgeData[],
   selectedId: string | null,
@@ -105,8 +115,8 @@ function mapEdges(
 
   return sourceEdges.map((e) => {
     const isConnected = hasSelection && (e.source === selectedId || e.target === selectedId);
-    const inTrace = traceIds.includes(e.source) && traceIds.includes(e.target);
-    const dimmed = hasSelection ? !isConnected : isTraceActive && traceIds.length > 0 && !inTrace;
+    const inTrace = isTraceActive && isEdgeInTrace(e, traceIds);
+    const dimmed = isTraceActive && traceIds.length > 0 ? !inTrace : hasSelection && !isConnected;
 
     const relTokens = getRelationTokens(e.relation || (e as any).relationshipType || (e as any).symbol);
 
@@ -115,15 +125,15 @@ function mapEdges(
       source: e.source,
       target: e.target,
       label: relTokens.label,
-      animated: isConnected || inTrace,
+      animated: inTrace || isConnected,
       style: {
-        stroke: isConnected
+        stroke: inTrace
           ? "var(--color-primary)"
-          : inTrace
+          : isConnected
             ? "var(--color-primary)"
             : relTokens.cssVar,
-        strokeWidth: isConnected ? 2.5 : inTrace ? 2 : 1.2,
-        opacity: dimmed ? 0.1 : isConnected ? 1 : 0.8,
+        strokeWidth: inTrace ? 3 : isConnected ? 2.5 : 1.2,
+        opacity: dimmed ? 0.08 : inTrace ? 1 : isConnected ? 1 : 0.8,
         strokeDasharray: relTokens.dash,
       },
       labelStyle: {
@@ -138,6 +148,7 @@ function mapEdges(
     } satisfies Edge;
   });
 }
+
 
 function Canvas(props: GraphCanvasProps) {
   const { zoomIn, zoomOut, fitView, setCenter, getNode } = useReactFlow();
