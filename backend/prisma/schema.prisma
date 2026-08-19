@@ -6,3 +6,118 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
+model Repository {
+  id            String         @id @default(uuid())
+  githubUrl     String         @unique @map("github_url")
+  owner         String
+  name          String
+  defaultBranch String         @default("main") @map("default_branch")
+  language      String?
+  description   String?
+  stars         Int?           @default(0)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  files         File[]
+  relationships Relationship[]
+  apiRoutes     ApiRoute[]
+  analyses      Analysis[]
+
+  @@unique([owner, name])
+  @@index([owner, name])
+  @@map("repositories")
+}
+
+model File {
+  id           String         @id @default(uuid())
+  repositoryId String         @map("repository_id")
+  path         String
+  name         String
+  extension    String?
+  type         String         @default("file")
+  size         Int?           @default(0)
+  loc          Int?           @default(0)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  symbols      Symbol[]
+  apiRoutes    ApiRoute[]
+
+  @@unique([repositoryId, path])
+  @@index([repositoryId])
+  @@index([repositoryId, path])
+  @@map("files")
+}
+
+model Symbol {
+  id        String   @id @default(uuid())
+  fileId    String   @map("file_id")
+  name      String
+  type      String
+  startLine Int?     @map("start_line")
+  endLine   Int?     @map("end_line")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([fileId, name])
+  @@map("symbols")
+}
+
+model Relationship {
+  id               String      @id @default(uuid())
+  repositoryId     String      @map("repository_id")
+  sourceId         String      @map("source_id")
+  targetId         String      @map("target_id")
+  relationshipType String      @map("relationship_type")
+  metadata         Json?
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  repository       Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId])
+  @@index([repositoryId, sourceId])
+  @@index([repositoryId, targetId])
+  @@index([repositoryId, relationshipType])
+  @@map("relationships")
+}
+
+model ApiRoute {
+  id           String      @id @default(uuid())
+  repositoryId String      @map("repository_id")
+  method       String
+  path         String
+  fileId       String?     @map("file_id")
+  handler      String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  file         File?       @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([repositoryId])
+  @@index([repositoryId, method, path])
+  @@map("api_routes")
+}
+
+model Analysis {
+  id           String      @id @default(uuid())
+  repositoryId String      @map("repository_id")
+  status       String      @default("PENDING")
+  error        String?
+  metadata     Json?
+  startedAt    DateTime    @default(now()) @map("started_at")
+  completedAt  DateTime?   @map("completed_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  repository   Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId])
+  @@index([repositoryId, status])
+  @@map("analyses")
+}
