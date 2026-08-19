@@ -374,9 +374,9 @@ export function NodeDetailsPanel({
               ) : null}
             </TabsContent>
 
-            {/* AI Explanation Tab (Preview) */}
+            {/* AI Explanation Tab */}
             <TabsContent value="ai" className="mt-3">
-              <AiExplanationPanel node={effectiveNode as any} embedded />
+              <AiExplanationPanel mode="node" nodeId={nodeId} node={effectiveNode as any} embedded />
             </TabsContent>
           </Tabs>
         </div>

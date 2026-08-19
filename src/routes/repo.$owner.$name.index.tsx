@@ -7,6 +7,7 @@ import { CompositionPanel } from "@/components/repolens/CompositionPanel";
 import { FileExplorer } from "@/components/repolens/FileExplorer";
 import { HotspotsPanel } from "@/components/repolens/HotspotsPanel";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
+import { AiExplanationPanel } from "@/components/repolens/AiExplanationPanel";
 import { PanelHeading, StatTile } from "@/components/repolens/primitives";
 import { useRepository, useRepositoryFiles, useRepositoryGraph } from "@/hooks/useRepositoryData";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
@@ -159,6 +160,11 @@ function Overview() {
                 relationCounts={relationCounts}
               />
               <HotspotsPanel hotspots={hotspots} onSelectNode={(id) => setSelectedId(id)} />
+              <AiExplanationPanel
+                mode="repository"
+                repositoryId={repository?.id || repoId}
+                repoName={`${owner}/${name}`}
+              />
             </div>
 
             <div className="grid content-start gap-4">

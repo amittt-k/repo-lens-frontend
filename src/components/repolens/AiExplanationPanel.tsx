@@ -1,92 +1,292 @@
-import { Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Bot, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { GraphNodeData } from "@/data/mock-repo";
-import { genericExplanation, mockExplanations } from "@/data/mock-repo";
-import { EmptyState, MockBadge, PanelHeading } from "./primitives";
+import type { TracedFlow } from "@/utils/flowTracing";
+import apiService, { ApiError } from "@/services/api.service";
+import { EmptyState, PanelHeading } from "./primitives";
 
-/**
- * UI shell for AI explanations. The text comes from a static fixture — no model
- * is called. Later this reads from the analysis/AI endpoint.
- */
-export function AiExplanationPanel({
-  node,
-  embedded = false,
-  className,
-}: {
-  node: GraphNodeData | null;
+export type AiExplanationMode = "node" | "repository" | "flow";
+
+export interface AiExplanationPanelProps {
+  mode?: AiExplanationMode;
+  nodeId?: string | null | undefined;
+  node?: { id: string; label: string; kind?: string; path?: string } | null | undefined;
+  repositoryId?: string | null | undefined;
+  repoName?: string | undefined;
+  flow?: TracedFlow | null | undefined;
   embedded?: boolean;
   className?: string;
-}) {
-  const [state, setState] = useState<"idle" | "loading" | "ready">("idle");
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  autoLoad?: boolean;
+  onClose?: () => void;
+}
 
-  function clearTimer() {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
+/**
+ * Safe markdown parser that converts text without dangerous HTML injection.
+ */
+function SafeMarkdownProse({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let currentList: string[] = [];
+
+  function flushList(keyPrefix: string) {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`${keyPrefix}-list`} className="my-1.5 space-y-1 pl-4 text-xs text-foreground/90">
+          {currentList.map((item, idx) => (
+            <li key={idx} className="list-disc leading-relaxed">
+              {formatInlineSpans(item)}
+            </li>
+          ))}
+        </ul>,
+      );
+      currentList = [];
     }
   }
 
-  useEffect(() => {
-    clearTimer();
-    setState("idle");
-    return () => {
-      clearTimer();
-    };
-  }, [node?.id]);
-
-  function explain() {
-    clearTimer();
-    setState("loading");
-    timerRef.current = setTimeout(() => {
-      setState("ready");
-      timerRef.current = null;
-    }, 700);
+  function formatInlineSpans(text: string): React.ReactNode[] {
+    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={i} className="font-semibold text-foreground">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return (
+          <code
+            key={i}
+            className="rounded bg-muted/80 px-1 py-0.5 font-mono text-[11px] text-primary"
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      return part;
+    });
   }
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+      currentList.push(trimmed.slice(2));
+      return;
+    }
+
+    flushList(`flush-${i}`);
+
+    if (trimmed.startsWith("### ")) {
+      elements.push(
+        <h4 key={i} className="mt-3.5 mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-primary">
+          {trimmed.slice(4)}
+        </h4>,
+      );
+    } else if (trimmed.startsWith("## ")) {
+      elements.push(
+        <h3 key={i} className="mt-4 mb-1.5 font-sans text-sm font-semibold tracking-tight text-foreground">
+          {trimmed.slice(3)}
+        </h3>,
+      );
+    } else if (trimmed.startsWith("# ")) {
+      elements.push(
+        <h2 key={i} className="mt-4 mb-2 font-sans text-base font-bold text-foreground">
+          {trimmed.slice(2)}
+        </h2>,
+      );
+    } else if (trimmed.length > 0) {
+      elements.push(
+        <p key={i} className="my-1.5 text-xs leading-relaxed text-foreground/90">
+          {formatInlineSpans(trimmed)}
+        </p>,
+      );
+    }
+  });
+
+  flushList("final");
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
+export function AiExplanationPanel({
+  mode = "node",
+  nodeId,
+  node,
+  repositoryId,
+  repoName,
+  flow,
+  embedded = false,
+  className,
+  autoLoad = false,
+}: AiExplanationPanelProps) {
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+
+  const targetKey =
+    mode === "node" ? nodeId || node?.id : mode === "repository" ? repositoryId : flow?.id || flow?.startNodeId;
+
+  // Reset state on target change
+  useEffect(() => {
+    setStatus("idle");
+    setExplanation(null);
+    setErrorMessage(null);
+    setModel(null);
+
+    if (autoLoad && targetKey) {
+      void fetchExplanation();
+    }
+  }, [targetKey, mode]);
+
+  async function fetchExplanation() {
+    setStatus("loading");
+    setErrorMessage(null);
+
+    try {
+      if (mode === "node") {
+        const id = nodeId || node?.id;
+        if (!id) {
+          throw new Error("No node selected to explain.");
+        }
+        const res = await apiService.explainNode(id);
+        setExplanation(res.explanation);
+        setModel(res.model || null);
+        setStatus("success");
+      } else if (mode === "repository") {
+        if (!repositoryId) {
+          throw new Error("No repository ID available to explain.");
+        }
+        const res = await apiService.explainRepository(repositoryId);
+        setExplanation(res.explanation);
+        setModel(res.model || null);
+        setStatus("success");
+      } else if (mode === "flow") {
+        if (!flow || !Array.isArray(flow.steps) || flow.steps.length === 0) {
+          throw new Error("No active flow trace selected to explain.");
+        }
+        const res = await apiService.explainFlow(flow);
+        setExplanation(res.explanation);
+        setModel(res.model || null);
+        setStatus("success");
+      }
+    } catch (err: any) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err?.message || "Failed to generate AI explanation. Please check backend connection.";
+      setErrorMessage(msg);
+      setStatus("error");
+    }
+  }
+
+  const hasTarget = Boolean(
+    (mode === "node" && (nodeId || node?.id)) ||
+      (mode === "repository" && repositoryId) ||
+      (mode === "flow" && flow && flow.steps?.length > 0),
+  );
+
+  const title =
+    mode === "repository"
+      ? "Architectural Overview"
+      : mode === "flow"
+        ? `Flow: ${flow?.name || "Execution Trace"}`
+        : `Entity: ${node?.label || nodeId || "Node"}`;
 
   const body = (
     <div className={cn("space-y-3", embedded ? "" : "p-4")}>
-      {!node ? (
+      {!hasTarget ? (
         <EmptyState
           icon={<Sparkles className="size-4" />}
-          title="Nothing to explain yet"
-          description="Select a node to generate a plain-language walkthrough of its role in the codebase."
+          title={
+            mode === "flow"
+              ? "No active flow trace"
+              : mode === "repository"
+                ? "Repository unavailable"
+                : "No entity selected"
+          }
+          description={
+            mode === "flow"
+              ? "Select an execution flow from the panel above to generate an AI walkthrough."
+              : mode === "repository"
+                ? "Repository analysis facts are required to generate an architectural overview."
+                : "Pick a node in the graph or file explorer to explain its role and dependencies."
+          }
         />
-      ) : state === "idle" ? (
-        <>
+      ) : status === "idle" ? (
+        <div className="space-y-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Generate a plain-language explanation of{" "}
-            <code className="font-mono text-primary">{node.label}</code> — its responsibility,
-            inbound dependencies and risk of change.
+            {mode === "repository"
+              ? `Generate an AI architectural walkthrough for ${repoName || "this repository"} based on verified static code facts.`
+              : mode === "flow"
+                ? `Generate a plain-language explanation of this ${flow?.steps?.length || 0}-step execution path and its boundary transitions.`
+                : `Generate a plain-language explanation of ${node?.label || "this entity"} — its responsibility, dependencies, and architectural role.`}
           </p>
-          <Button size="sm" variant="outline" className="w-full gap-2" onClick={explain}>
-            <Sparkles className="size-3.5" />
-            Explain this node
+          <Button size="sm" variant="outline" className="w-full gap-2" onClick={fetchExplanation}>
+            <Sparkles className="size-3.5 text-primary" />
+            {mode === "repository"
+              ? "Explain architecture"
+              : mode === "flow"
+                ? "Explain this flow"
+                : "Explain this node"}
           </Button>
-        </>
-      ) : state === "loading" ? (
-        <div className="space-y-2">
+        </div>
+      ) : status === "loading" ? (
+        <div className="space-y-2.5 py-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin text-primary" />
+            <span>Analyzing verified static facts & generating explanation…</span>
+          </div>
           <Skeleton className="h-3 w-full" />
           <Skeleton className="h-3 w-[92%]" />
           <Skeleton className="h-3 w-[78%]" />
           <Skeleton className="h-3 w-[85%]" />
         </div>
+      ) : status === "error" ? (
+        <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-1">
+              <span className="font-semibold block">Explanation Unavailable</span>
+              <p className="leading-relaxed opacity-90">{errorMessage}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 w-full gap-1.5 text-xs text-foreground hover:bg-background/80"
+            onClick={fetchExplanation}
+          >
+            <RefreshCw className="size-3" />
+            Try again
+          </Button>
+        </div>
       ) : (
-        <>
-          <p className="text-xs leading-relaxed text-foreground/90">
-            {mockExplanations[node.id] ?? genericExplanation}
-          </p>
-          <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
-            <MockBadge />
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={explain}>
+        <div className="space-y-3">
+          <div className="prose prose-invert max-w-none text-xs">
+            <SafeMarkdownProse content={explanation || "No explanation text returned."} />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
+            <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+              <Bot className="size-3 text-primary" />
+              <span>Grounded in RepoLens analysis {model ? `(${model})` : ""}</span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={fetchExplanation}
+            >
+              <RefreshCw className="size-3" />
               Regenerate
             </Button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -95,8 +295,19 @@ export function AiExplanationPanel({
 
   return (
     <section className={cn("panel-surface overflow-hidden rounded-lg", className)}>
-      <PanelHeading title="AI explanation" hint="Plain-language read of the selection" />
+      <PanelHeading
+        title={title}
+        hint={
+          mode === "repository"
+            ? "Repository Architecture"
+            : mode === "flow"
+              ? "Flow Trace"
+              : "AST Entity"
+        }
+      />
       {body}
     </section>
   );
 }
+
+export default AiExplanationPanel;

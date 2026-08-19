@@ -124,6 +124,20 @@ export interface NodeRelationshipsResponse {
   totalOutgoing: number;
 }
 
+export interface AiExplanationResponse {
+  success: boolean;
+  repositoryId?: string;
+  nodeId?: string;
+  flowId?: string;
+  explanation: string;
+  model?: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
 export class ApiError extends Error {
   statusCode: number;
   details?: any;
@@ -280,6 +294,37 @@ export const apiService = {
   async getNodeRelationships(id: string): Promise<NodeRelationshipsResponse> {
     return request(`/nodes/${encodeURIComponent(id)}/relationships`);
   },
+
+  /**
+   * Requests an AI-generated architectural explanation for a repository.
+   */
+  async explainRepository(repositoryId: string): Promise<AiExplanationResponse> {
+    return request("/ai/explain/repository", {
+      method: "POST",
+      body: JSON.stringify({ repositoryId }),
+    });
+  },
+
+  /**
+   * Requests an AI-generated technical explanation for a specific graph node / AST symbol.
+   */
+  async explainNode(nodeId: string): Promise<AiExplanationResponse> {
+    return request("/ai/explain/node", {
+      method: "POST",
+      body: JSON.stringify({ nodeId }),
+    });
+  },
+
+  /**
+   * Requests an AI-generated explanation for an active deterministic flow trace.
+   */
+  async explainFlow(flow: any): Promise<AiExplanationResponse> {
+    return request("/ai/explain/flow", {
+      method: "POST",
+      body: JSON.stringify({ flow }),
+    });
+  },
 };
 
 export default apiService;
+
