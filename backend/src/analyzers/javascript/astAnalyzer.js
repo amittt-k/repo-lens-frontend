@@ -359,6 +359,7 @@ export function analyzeSource(sourceCode, options = {}) {
   return {
     success: true,
     error: null,
+    ast,
     symbols,
     imports,
     exports: exportsList,

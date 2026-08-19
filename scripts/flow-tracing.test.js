@@ -136,4 +136,33 @@ describe("Deterministic Flow Tracing Engine Tests", () => {
     assert.equal(flows[0].startNodeId, "Route1");
     assert.equal(flows[0].steps.length, 3);
   });
+
+  it("handles large sparse graphs with bounded candidate evaluation (PERF-002)", () => {
+    // Generate 150 disconnected components / candidates
+    const nodes = [];
+    const edges = [];
+
+    for (let i = 0; i < 150; i++) {
+      const rootId = `root-${i}`;
+      const childId = `child-${i}`;
+      nodes.push(
+        { id: rootId, label: `Entry_${i}`, kind: "component" },
+        { id: childId, label: `Service_${i}`, kind: "module" },
+      );
+      edges.push({
+        id: `e-${i}`,
+        source: rootId,
+        target: childId,
+        relationshipType: "CALLS",
+      });
+    }
+
+    const t0 = performance.now();
+    const flows = discoverRepositoryFlows(nodes, edges, 5, 20);
+    const duration = performance.now() - t0;
+
+    assert.equal(flows.length, 5);
+    assert.ok(duration < 100, `Expected flow discovery under 100ms, took ${duration.toFixed(2)}ms`);
+    assert.equal(flows[0].steps.length, 2);
+  });
 });

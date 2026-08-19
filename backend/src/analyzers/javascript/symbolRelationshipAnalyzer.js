@@ -221,14 +221,14 @@ export function analyzeSymbolRelationships(fileDataList = [], options = {}) {
       }
     }
 
-    // If source content is not available, continue
-    if (!content.trim()) continue;
-
-    let ast;
-    try {
-      ast = parseSourceCode(content);
-    } catch {
-      continue;
+    let ast = f.ast;
+    if (!ast) {
+      if (!content.trim()) continue;
+      try {
+        ast = parseSourceCode(content);
+      } catch {
+        continue;
+      }
     }
 
     // Traverse top-level AST items to find classes, methods, functions, calls, extensions, and implements

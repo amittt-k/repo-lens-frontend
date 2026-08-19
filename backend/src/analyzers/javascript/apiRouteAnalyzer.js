@@ -188,12 +188,14 @@ export function analyzeApiRoutes(fileDataList = [], options = {}) {
   const routerMounts = new Map(); // key: routerVarName or imported path -> prefix
 
   for (const f of fileDataList) {
-    if (!f.content) continue;
-    let ast;
-    try {
-      ast = parseSourceCode(f.content);
-    } catch {
-      continue;
+    let ast = f.ast;
+    if (!ast) {
+      if (!f.content) continue;
+      try {
+        ast = parseSourceCode(f.content);
+      } catch {
+        continue;
+      }
     }
 
     const visitMounts = (node) => {
@@ -237,16 +239,18 @@ export function analyzeApiRoutes(fileDataList = [], options = {}) {
 
   // 3. Step 2: Extract API routes
   for (const f of fileDataList) {
-    if (!f.content) continue;
     const normPath = normalizePath(f.path);
     const fileId = f.id || normPath;
     const fileImports = f.imports || [];
 
-    let ast;
-    try {
-      ast = parseSourceCode(f.content);
-    } catch {
-      continue;
+    let ast = f.ast;
+    if (!ast) {
+      if (!f.content) continue;
+      try {
+        ast = parseSourceCode(f.content);
+      } catch {
+        continue;
+      }
     }
 
     const visitRoutes = (node) => {
@@ -434,15 +438,17 @@ export function analyzeApiRoutes(fileDataList = [], options = {}) {
 
   // 4. Step 3: Detect client API calls (CALLS_API)
   for (const f of fileDataList) {
-    if (!f.content) continue;
     const normPath = normalizePath(f.path);
     const fileSymbols = f.symbols || [];
 
-    let ast;
-    try {
-      ast = parseSourceCode(f.content);
-    } catch {
-      continue;
+    let ast = f.ast;
+    if (!ast) {
+      if (!f.content) continue;
+      try {
+        ast = parseSourceCode(f.content);
+      } catch {
+        continue;
+      }
     }
 
     const visitClientCalls = (node, currentEnclosingSymbolId) => {

@@ -63,19 +63,45 @@ function mapNodes(
   isTraceActive = false,
   prevNodes?: Node[],
 ): Node[] {
-  const prevPosById = new Map(prevNodes?.map((n) => [n.id, n.position]));
+  const prevNodeMap = new Map(prevNodes?.map((n) => [n.id, n]));
+  const traceIdSet = new Set(traceIds);
+  const hasSelection = Boolean(selectedId);
+  const cols = 5;
+
   return sourceNodes.map((n, i) => {
-    const cols = 5;
+    const prevNode = prevNodeMap.get(n.id);
     const defaultPos =
       seed === 0
         ? n.position
         : { x: (i % cols) * 300 + 40, y: Math.floor(i / cols) * 170 + 40 };
 
-    const position = prevPosById.get(n.id) ?? defaultPos;
+    const position = prevNode?.position ?? defaultPos;
     const isSelected = selectedId === n.id;
     const isNeighbor = connectedIds.has(n.id);
-    const hasSelection = Boolean(selectedId);
-    const dimmed = hasSelection ? !isSelected && !isNeighbor : isTraceActive && traceIds.length > 0 && !traceIds.includes(n.id);
+    const inTrace = traceIdSet.has(n.id);
+    const inHighlight = isNeighbor && !isSelected;
+    const dimmed = hasSelection
+      ? !isSelected && !isNeighbor
+      : isTraceActive && traceIds.length > 0 && !inTrace;
+
+    // Reuse prevNode if all visual and data properties are identical
+    if (prevNode && prevNode.data) {
+      const prevData = prevNode.data as CodeNodePayload;
+      if (
+        prevNode.selected === isSelected &&
+        prevNode.position.x === position.x &&
+        prevNode.position.y === position.y &&
+        prevData.inTrace === inTrace &&
+        prevData.inHighlight === inHighlight &&
+        prevData.dimmed === dimmed &&
+        prevData.label === n.label &&
+        prevData.path === n.path &&
+        prevData.kind === n.kind &&
+        prevData.loc === n.loc
+      ) {
+        return prevNode;
+      }
+    }
 
     return {
       id: n.id,
@@ -87,8 +113,8 @@ function mapNodes(
         path: n.path,
         kind: n.kind,
         loc: n.loc,
-        inTrace: traceIds.includes(n.id),
-        inHighlight: isNeighbor && !isSelected,
+        inTrace,
+        inHighlight,
         dimmed,
       } satisfies CodeNodePayload,
     } satisfies Node;
@@ -110,30 +136,52 @@ function mapEdges(
   selectedId: string | null,
   traceIds: string[] = [],
   isTraceActive = false,
+  prevEdges?: Edge[],
 ): Edge[] {
+  const prevEdgeMap = new Map(prevEdges?.map((e) => [e.id, e]));
   const hasSelection = Boolean(selectedId);
 
   return sourceEdges.map((e) => {
+    const prevEdge = prevEdgeMap.get(e.id);
     const isConnected = hasSelection && (e.source === selectedId || e.target === selectedId);
     const inTrace = isTraceActive && isEdgeInTrace(e, traceIds);
     const dimmed = isTraceActive && traceIds.length > 0 ? !inTrace : hasSelection && !isConnected;
-
     const relTokens = getRelationTokens(e.relation || (e as any).relationshipType || (e as any).symbol);
+
+    const animated = inTrace || isConnected;
+    const stroke = inTrace
+      ? "var(--color-primary)"
+      : isConnected
+        ? "var(--color-primary)"
+        : relTokens.cssVar;
+    const strokeWidth = inTrace ? 3 : isConnected ? 2.5 : 1.2;
+    const opacity = dimmed ? 0.08 : inTrace ? 1 : isConnected ? 1 : 0.8;
+    const labelBgOpacity = dimmed ? 0 : 0.9;
+
+    // Reuse prevEdge if all styling and animation properties are identical
+    if (
+      prevEdge &&
+      prevEdge.animated === animated &&
+      prevEdge.label === relTokens.label &&
+      prevEdge.style?.stroke === stroke &&
+      prevEdge.style?.strokeWidth === strokeWidth &&
+      prevEdge.style?.opacity === opacity &&
+      prevEdge.style?.strokeDasharray === relTokens.dash &&
+      prevEdge.labelBgStyle?.opacity === labelBgOpacity
+    ) {
+      return prevEdge;
+    }
 
     return {
       id: e.id,
       source: e.source,
       target: e.target,
       label: relTokens.label,
-      animated: inTrace || isConnected,
+      animated,
       style: {
-        stroke: inTrace
-          ? "var(--color-primary)"
-          : isConnected
-            ? "var(--color-primary)"
-            : relTokens.cssVar,
-        strokeWidth: inTrace ? 3 : isConnected ? 2.5 : 1.2,
-        opacity: dimmed ? 0.08 : inTrace ? 1 : isConnected ? 1 : 0.8,
+        stroke,
+        strokeWidth,
+        opacity,
         strokeDasharray: relTokens.dash,
       },
       labelStyle: {
@@ -143,7 +191,7 @@ function mapEdges(
       },
       labelBgStyle: {
         fill: "var(--color-background)",
-        opacity: dimmed ? 0 : 0.9,
+        opacity: labelBgOpacity,
       },
     } satisfies Edge;
   });
@@ -175,7 +223,7 @@ function Canvas(props: GraphCanvasProps) {
     mapEdges(props.edges, props.selectedId, props.traceNodeIds, props.traceActive),
   );
 
-  // Sync nodes when inputs change, preserving dragged positions
+  // Sync nodes when inputs change, preserving dragged positions and unchanged node objects
   useEffect(() => {
     setNodes((prev) =>
       mapNodes(
@@ -198,9 +246,11 @@ function Canvas(props: GraphCanvasProps) {
     setNodes,
   ]);
 
-  // Sync edges when edges or selection/trace state changes
+  // Sync edges when edges or selection/trace state changes, reusing unchanged edge objects
   useEffect(() => {
-    setEdges(mapEdges(props.edges, props.selectedId, props.traceNodeIds, props.traceActive));
+    setEdges((prev) =>
+      mapEdges(props.edges, props.selectedId, props.traceNodeIds, props.traceActive, prev),
+    );
   }, [props.edges, props.selectedId, props.traceNodeIds, props.traceActive, setEdges]);
 
   const focusNode = useCallback(

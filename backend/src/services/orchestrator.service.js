@@ -80,7 +80,7 @@ export class OrchestratorService {
 
       // 4. Stage 2: AST Analysis & Symbol Extraction
       const fileAnalyses = [];
-      let totalSymbolsCount = 0;
+      const allSymbols = [];
       const syntaxErrors = [];
 
       for (const file of supportedFiles) {
@@ -91,21 +91,28 @@ export class OrchestratorService {
           syntaxErrors.push({ path: file.path, error: astResult.error });
         }
 
-        // Persist extracted symbols for this file
-        if (astResult.symbols && astResult.symbols.length > 0) {
-          await this.astService.persistFileSymbols(file.id, astResult.symbols);
-          totalSymbolsCount += astResult.symbols.length;
+        const fileSymbols = astResult.symbols || [];
+        for (const s of fileSymbols) {
+          allSymbols.push({
+            ...s,
+            fileId: file.id,
+          });
         }
 
         fileAnalyses.push({
           fileId: file.id,
           path: file.path,
           content,
-          symbols: astResult.symbols || [],
+          ast: astResult.ast || null,
+          symbols: fileSymbols,
           imports: astResult.imports || [],
           exports: astResult.exports || [],
         });
       }
+
+      // Batch persist extracted symbols across the entire repository in a single DB operation
+      await this.astService.persistRepositorySymbols(repositoryId, allSymbols);
+      const totalSymbolsCount = allSymbols.length;
 
       // 5. Stage 3: Dependency Analysis & IMPORTS Persistence
       const depGraphResult = buildRepositoryDependencyGraph(fileAnalyses, fileMap, options);
@@ -120,13 +127,18 @@ export class OrchestratorService {
         };
       });
 
-      // 6. Stage 4: Symbol Relationship Analysis & Persistence
+      // 6. Stage 4: Symbol Relationship Analysis & Persistence (reusing parsed AST)
       const symbolRels = analyzeSymbolRelationships(fileDataList, options);
       await this.relationshipService.persistSymbolRelationships(repositoryId, symbolRels);
 
-      // 7. Stage 5: API Route Analysis & Persistence
+      // 7. Stage 5: API Route Analysis & Persistence (reusing parsed AST)
       const { routes, relationships: routeRels } = analyzeApiRoutes(fileDataList, options);
       await this.apiRouteService.persistApiRoutes(repositoryId, routes, routeRels);
+
+      // Release analysis-local AST structures to immediately free memory
+      for (const fa of fileAnalyses) {
+        delete fa.ast;
+      }
 
       // 8. Calculate summary statistics
       const durationMs = Date.now() - startTime;

@@ -127,6 +127,42 @@ export class AstService {
 
     return { count: result.count };
   }
+
+  /**
+   * Batches persistence of symbols for an entire repository in a single transaction/operation.
+   *
+   * @param {string} repositoryId - UUID of the repository.
+   * @param {Array<{ fileId: string, name: string, type: string, startLine: number, endLine: number }>} allSymbols - All symbols across repository files.
+   * @returns {Promise<{ count: number }>}
+   */
+  async persistRepositorySymbols(repositoryId, allSymbols = []) {
+    if (!repositoryId || typeof repositoryId !== "string") {
+      throw new Error("repositoryId is required to persist symbols");
+    }
+
+    // Delete existing symbols for the entire repository
+    await this.db.symbol.deleteMany({
+      where: { file: { repositoryId } },
+    });
+
+    if (!Array.isArray(allSymbols) || allSymbols.length === 0) {
+      return { count: 0 };
+    }
+
+    const records = allSymbols.map((s) => ({
+      fileId: s.fileId,
+      name: s.name,
+      type: s.type,
+      startLine: s.startLine ?? 1,
+      endLine: s.endLine ?? 1,
+    }));
+
+    const result = await this.db.symbol.createMany({
+      data: records,
+    });
+
+    return { count: result.count };
+  }
 }
 
 export const astService = new AstService();

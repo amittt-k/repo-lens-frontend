@@ -90,23 +90,52 @@ function formatStepDetail(relType: string, targetLabel: string): string {
   return `Connected via ${norm} to ${targetLabel}`;
 }
 
+export interface FlowGraphIndex {
+  nodeMap: Map<string, FlowGraphNode>;
+  outgoingMap: Map<string, FlowGraphEdge[]>;
+  inDegrees: Map<string, number>;
+}
+
 /**
- * Traces an execution / dependency flow starting from a specified node ID.
- *
- * @param startNodeId - Node identifier to begin traversal from
- * @param nodes - Array of repository graph nodes
- * @param edges - Array of repository graph edges
- * @param options - Traversal options (maxDepth defaults to 8)
- * @returns TracedFlow object with ordered steps
+ * Builds an immutable adjacency and degree index once for O(1) lookups during traversal.
  */
-export function traceFlowFromNode(
-  startNodeId: string,
+export function buildFlowGraphIndex(
   nodes: FlowGraphNode[],
   edges: FlowGraphEdge[],
+): FlowGraphIndex {
+  const nodeMap = new Map<string, FlowGraphNode>();
+  const inDegrees = new Map<string, number>();
+
+  for (const node of nodes) {
+    nodeMap.set(node.id, node);
+    inDegrees.set(node.id, 0);
+  }
+
+  const outgoingMap = new Map<string, FlowGraphEdge[]>();
+  for (const edge of edges) {
+    const relType = edge.relationshipType || edge.relation || "";
+    if (FLOW_RELATIONSHIPS.has(relType) || FLOW_RELATIONSHIPS.has(relType.toUpperCase())) {
+      const list = outgoingMap.get(edge.source) || [];
+      list.push(edge);
+      outgoingMap.set(edge.source, list);
+
+      inDegrees.set(edge.target, (inDegrees.get(edge.target) || 0) + 1);
+    }
+  }
+
+  return { nodeMap, outgoingMap, inDegrees };
+}
+
+/**
+ * Traces an execution flow using a precomputed FlowGraphIndex.
+ */
+export function traceFlowFromIndex(
+  startNodeId: string,
+  index: FlowGraphIndex,
   options?: FlowTraceOptions,
 ): TracedFlow {
   const maxDepth = options?.maxDepth ?? 8;
-  const nodeMap = new Map<string, FlowGraphNode>(nodes.map((n) => [n.id, n]));
+  const { nodeMap, outgoingMap } = index;
   const startNode = nodeMap.get(startNodeId);
 
   if (!startNode) {
@@ -123,17 +152,6 @@ export function traceFlowFromNode(
       ],
       isLeaf: true,
     };
-  }
-
-  // Index outgoing flow edges by source ID
-  const outgoingMap = new Map<string, FlowGraphEdge[]>();
-  for (const edge of edges) {
-    const relType = edge.relationshipType || edge.relation || "";
-    if (FLOW_RELATIONSHIPS.has(relType) || FLOW_RELATIONSHIPS.has(relType.toUpperCase())) {
-      const list = outgoingMap.get(edge.source) || [];
-      list.push(edge);
-      outgoingMap.set(edge.source, list);
-    }
   }
 
   const steps: FlowStep[] = [];
@@ -212,29 +230,51 @@ export function traceFlowFromNode(
 }
 
 /**
+ * Traces an execution / dependency flow starting from a specified node ID.
+ *
+ * @param startNodeId - Node identifier to begin traversal from
+ * @param nodesOrIndex - Array of repository graph nodes or precomputed FlowGraphIndex
+ * @param edges - Array of repository graph edges (if nodes is an array)
+ * @param options - Traversal options (maxDepth defaults to 8)
+ * @returns TracedFlow object with ordered steps
+ */
+export function traceFlowFromNode(
+  startNodeId: string,
+  nodesOrIndex: FlowGraphNode[] | FlowGraphIndex,
+  edges?: FlowGraphEdge[],
+  options?: FlowTraceOptions,
+): TracedFlow {
+  if (nodesOrIndex && "nodeMap" in nodesOrIndex && "outgoingMap" in nodesOrIndex) {
+    return traceFlowFromIndex(startNodeId, nodesOrIndex as FlowGraphIndex, options);
+  }
+
+  const index = buildFlowGraphIndex(
+    Array.isArray(nodesOrIndex) ? nodesOrIndex : [],
+    Array.isArray(edges) ? edges : [],
+  );
+  return traceFlowFromIndex(startNodeId, index, options);
+}
+
+/**
  * Automatically discovers multi-step flows starting from repository entry points
  * (e.g. API routes, UI components, or root controllers).
+ *
+ * Uses a single precomputed FlowGraphIndex with bounded candidate evaluation
+ * to ensure linear O(V + E + K) complexity on large/sparse graphs.
  */
 export function discoverRepositoryFlows(
   nodes: FlowGraphNode[],
   edges: FlowGraphEdge[],
   limit = 6,
+  maxCandidates = 50,
 ): TracedFlow[] {
   if (!nodes.length || !edges.length) return [];
 
-  // Calculate in-degrees for flow edges
-  const inDegrees = new Map<string, number>();
-  for (const node of nodes) {
-    inDegrees.set(node.id, 0);
-  }
-  for (const edge of edges) {
-    const rel = edge.relationshipType || edge.relation || "";
-    if (FLOW_RELATIONSHIPS.has(rel) || FLOW_RELATIONSHIPS.has(rel.toUpperCase())) {
-      inDegrees.set(edge.target, (inDegrees.get(edge.target) || 0) + 1);
-    }
-  }
+  // 1. Build index once
+  const index = buildFlowGraphIndex(nodes, edges);
+  const { inDegrees } = index;
 
-  // Prioritize entry candidates: api_routes, 0-in-degree components/functions
+  // 2. Identify candidate entry points
   const candidates = [...nodes].filter((node) => {
     const kind = (node.kind || node.type || "").toLowerCase();
     const inDeg = inDegrees.get(node.id) || 0;
@@ -244,9 +284,12 @@ export function discoverRepositoryFlows(
   const flows: TracedFlow[] = [];
   const seenStartIds = new Set<string>();
 
-  for (const candidate of candidates) {
+  // 3. Evaluate bounded number of candidate nodes using the shared index
+  const evaluatedCandidates = candidates.slice(0, maxCandidates);
+
+  for (const candidate of evaluatedCandidates) {
     if (seenStartIds.has(candidate.id)) continue;
-    const flow = traceFlowFromNode(candidate.id, nodes, edges);
+    const flow = traceFlowFromIndex(candidate.id, index);
     if (flow.steps.length >= 2) {
       flows.push(flow);
       seenStartIds.add(candidate.id);
