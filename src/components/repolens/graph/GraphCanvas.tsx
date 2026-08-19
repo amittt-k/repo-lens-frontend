@@ -72,7 +72,7 @@ function Canvas(props: GraphCanvasProps) {
           label: e.symbol,
           animated: inTrace,
           style: {
-            stroke: inTrace ? "var(--color-primary)" : edgeColor[e.relation],
+            stroke: inTrace ? "var(--color-primary)" : relationTokens[e.relation].cssVar,
             strokeWidth: inTrace ? 2 : 1.2,
             opacity: dimmed ? 0.12 : 0.75,
             strokeDasharray: e.relation === "export" ? "4 3" : undefined,
