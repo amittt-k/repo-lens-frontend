@@ -1,0 +1,21 @@
+import { Router } from "express";
+import repositoryController from "../controllers/repository.controller.js";
+import { validateRequest } from "../middleware/validateRequest.js";
+
+const router = Router();
+
+const validateUrlPayload = validateRequest((req) => {
+  if (!req.body || typeof req.body !== "object") {
+    return "Request body must be a JSON object.";
+  }
+  if (!req.body.url || typeof req.body.url !== "string" || !req.body.url.trim()) {
+    return 'Field "url" is required and must be a non-empty string.';
+  }
+  return null;
+});
+
+router.post("/validate", validateUrlPayload, (req, res, next) => {
+  repositoryController.validateRepository(req, res, next);
+});
+
+export default router;
