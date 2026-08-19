@@ -7,11 +7,13 @@
 
 import prisma from "../config/database.js";
 import { AiService, aiService as defaultAiService } from "../services/ai.service.js";
+import { NodeService, nodeService as defaultNodeService } from "../services/node.service.js";
 
 export class AiController {
   constructor(options = {}) {
     this.db = options.prisma || prisma;
     this.aiService = options.aiService || defaultAiService;
+    this.nodeService = options.nodeService || (options.prisma ? new NodeService({ prisma: this.db }) : defaultNodeService);
   }
 
   /**
@@ -100,6 +102,89 @@ export class AiController {
       return res.status(200).json({
         success: true,
         repositoryId: repository.id,
+        explanation: result.explanation,
+        model: result.model,
+        usage: result.usage || null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/ai/explain/node
+   * Generates a grounded technical explanation for a specific AST symbol or file node.
+   */
+  async explainNode(req, res, next) {
+    try {
+      const { nodeId } = req.body;
+
+      // 1. Resolve node entity and its direct relationships
+      const relData = await this.nodeService.getNodeRelationships(nodeId);
+      const { node, outgoing, incoming } = relData;
+
+      // 2. Retrieve contained symbols where applicable
+      let containedSymbols = [];
+      if (node.entityType === "File") {
+        containedSymbols = await this.db.symbol.findMany({
+          where: { fileId: node.id },
+          select: { id: true, name: true, kind: true },
+          take: 30,
+        });
+      } else if (node.type === "class") {
+        // Find member methods or contained symbols from outgoing CONTAINS relationships
+        const containedRels = outgoing.filter((r) => r.relationshipType === "CONTAINS");
+        if (containedRels.length > 0) {
+          containedSymbols = await this.db.symbol.findMany({
+            where: { id: { in: containedRels.map((r) => r.targetId) } },
+            select: { id: true, name: true, kind: true },
+            take: 30,
+          });
+        }
+      }
+
+      // 3. Construct structured node context for AI
+      const nodeData = {
+        id: node.id,
+        label: node.label,
+        name: node.data?.name || node.label,
+        kind: node.type || node.data?.kind || "symbol",
+        path: node.data?.filePath || "",
+        startLine: node.data?.startLine,
+        endLine: node.data?.endLine,
+        loc:
+          node.data?.loc ||
+          (node.data?.endLine && node.data?.startLine
+            ? node.data.endLine - node.data.startLine + 1
+            : undefined),
+        containedSymbols: containedSymbols.map((s) => ({
+          name: s.name,
+          kind: s.kind,
+        })),
+        dependsOn: outgoing.map((r) => ({
+          relationshipType: r.relationshipType,
+          targetId: r.targetId,
+        })),
+        usedBy: incoming.map((r) => ({
+          relationshipType: r.relationshipType,
+          sourceId: r.sourceId,
+        })),
+        apiRoute:
+          node.type === "api_route"
+            ? {
+                method: node.data?.method,
+                path: node.data?.path,
+                handler: node.data?.handler,
+              }
+            : undefined,
+      };
+
+      // 4. Invoke AI service
+      const result = await this.aiService.explainNode(nodeData);
+
+      return res.status(200).json({
+        success: true,
+        nodeId: node.id,
         explanation: result.explanation,
         model: result.model,
         usage: result.usage || null,
