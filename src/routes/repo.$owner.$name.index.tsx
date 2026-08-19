@@ -34,10 +34,9 @@ export const Route = createFileRoute("/repo/$owner/$name/")({
 function Overview() {
   const { owner, name } = Route.useParams();
   const navigate = useNavigate();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [flowId, setFlowId] = useState<string | null>("flow-checkout");
+  const { selectedId, selected, setSelectedId, activeFlowId, setActiveFlowId } =
+    useWorkspaceState();
 
-  const selected = mockGraphNodes.find((n) => n.id === selectedId) ?? null;
 
   const relationCounts = (["import", "call", "export"] as RelationKind[]).map((relation) => ({
     relation,
