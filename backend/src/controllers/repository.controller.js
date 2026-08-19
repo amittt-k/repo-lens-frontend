@@ -1,6 +1,7 @@
 import githubService from "../services/github.service.js";
 import ingestionService from "../services/ingestion.service.js";
 import fileTreeService from "../services/fileTree.service.js";
+import orchestratorService from "../services/orchestrator.service.js";
 import prisma from "../config/database.js";
 
 export class RepositoryController {
@@ -55,9 +56,20 @@ export class RepositoryController {
       next(err);
     }
   }
+
+  async analyzeRepository(req, res, next) {
+    try {
+      const { id } = req.params;
+      const result = await orchestratorService.analyzeRepository(id, req.body || {});
+      return res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const repositoryController = new RepositoryController();
 export default repositoryController;
+
 
 

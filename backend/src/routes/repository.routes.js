@@ -34,5 +34,10 @@ router.get("/:id/tree", (req, res, next) => {
   repositoryController.getFileTree(req, res, next);
 });
 
+router.post("/:id/analyze", (req, res, next) => {
+  repositoryController.analyzeRepository(req, res, next);
+});
+
 export default router;
+
 
