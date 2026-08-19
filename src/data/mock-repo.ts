@@ -320,7 +320,13 @@ export interface FlowStep {
   detail: string;
 }
 
-export const mockFlows: { id: string; name: string; steps: FlowStep[] }[] = [
+export interface RepoFlow {
+  id: string;
+  name: string;
+  steps: FlowStep[];
+}
+
+export const mockFlows: RepoFlow[] = [
   {
     id: "flow-checkout",
     name: "Checkout submit",
