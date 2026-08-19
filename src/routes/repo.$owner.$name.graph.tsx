@@ -9,13 +9,12 @@ import { FlowTracePanel } from "@/components/repolens/FlowTracePanel";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
 import {
   RelationshipFilters,
-  allKinds,
-  allRelations,
   type FilterState,
 } from "@/components/repolens/RelationshipFilters";
 import { SearchPalette } from "@/components/repolens/SearchPalette";
 import { EmptyState, PanelHeading } from "@/components/repolens/primitives";
 import { mockFlows, mockGraphEdges, mockGraphNodes } from "@/data/mock-repo";
+import { allKinds, allRelations } from "@/lib/graph-tokens";
 
 // React Flow measures real DOM, so the canvas is loaded on the client only.
 const GraphCanvas = lazy(() => import("@/components/repolens/graph/GraphCanvas"));
