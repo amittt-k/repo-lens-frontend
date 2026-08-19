@@ -4,8 +4,12 @@ import { GitBranch, LayoutDashboard, Network, Waypoints } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RepoUrlForm } from "@/components/repolens/RepoUrlForm";
 import { MockBadge } from "@/components/repolens/primitives";
+import { validateWorkspaceSearch } from "@/hooks/useWorkspaceState";
 
 export const Route = createFileRoute("/repo/$owner/$name")({
+  // Workspace state (selection, flow, filters) lives in the URL so it survives
+  // Overview <-> Graph navigation and stays shareable/reloadable.
+  validateSearch: validateWorkspaceSearch,
   component: RepoLayout,
 });
 
