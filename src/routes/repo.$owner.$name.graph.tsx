@@ -45,13 +45,17 @@ function CanvasFallback() {
 }
 
 function GraphWorkspace() {
-  const [selectedId, setSelectedId] = useState<string | null>("n-cart-store");
-  const [filters, setFilters] = useState<FilterState>({
-    relations: allRelations,
-    kinds: allKinds,
-  });
-  const [traceMode, setTraceMode] = useState(false);
-  const [flowId, setFlowId] = useState<string | null>(null);
+  const {
+    selectedId,
+    selected,
+    setSelectedId,
+    activeFlowId,
+    setActiveFlowId,
+    traceActive,
+    traceNodeIds,
+    filters,
+    setFilters,
+  } = useWorkspaceState();
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
