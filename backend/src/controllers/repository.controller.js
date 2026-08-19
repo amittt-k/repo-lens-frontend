@@ -68,8 +68,8 @@ export class RepositoryController {
       const ingestResult = await ingestionService.ingestRepository(url);
       const repositoryId = ingestResult.repository.id;
 
-      // 2. Orchestrate complete static analysis pipeline
-      const analysisResult = await orchestratorService.analyzeRepository(repositoryId, req.body || {});
+      // 2. Orchestrate complete static analysis pipeline (server-controlled analysis only)
+      const analysisResult = await orchestratorService.analyzeRepository(repositoryId, {});
 
       return res.status(200).json({
         success: true,
@@ -185,7 +185,7 @@ export class RepositoryController {
   async analyzeRepository(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await orchestratorService.analyzeRepository(id, req.body || {});
+      const result = await orchestratorService.analyzeRepository(id, {});
       return res.status(200).json(result);
     } catch (err) {
       next(err);

@@ -206,18 +206,18 @@ export class AiController {
       const name = rawFlow.name || req.body.name || (rawSteps[0]?.label ? `Flow: ${rawSteps[0].label}` : "Flow Trace");
       const startNodeId = rawFlow.startNodeId || req.body.startNodeId || rawSteps[0]?.nodeId || null;
 
-      // 1. Normalize structured flow trace facts
+      // 1. Normalize and bound structured flow trace facts
       const flowData = {
         id: flowId,
-        name,
+        name: typeof name === "string" ? name.slice(0, 100) : "Flow Trace",
         startNodeId,
-        steps: rawSteps.map((s) => ({
-          nodeId: s.nodeId || s.id,
-          label: s.label || s.name || "Unknown Step",
-          kind: s.kind || s.type || "module",
-          path: s.path || s.filePath || "",
-          relationshipType: s.relationshipType || s.relation,
-          detail: s.detail || "",
+        steps: rawSteps.slice(0, 30).map((s) => ({
+          nodeId: typeof s.nodeId === "string" ? s.nodeId : typeof s.id === "string" ? s.id : "step",
+          label: typeof s.label === "string" ? s.label.slice(0, 120) : typeof s.name === "string" ? s.name.slice(0, 120) : "Unknown Step",
+          kind: typeof s.kind === "string" ? s.kind.slice(0, 50) : typeof s.type === "string" ? s.type.slice(0, 50) : "module",
+          path: typeof s.path === "string" ? s.path.slice(0, 250) : typeof s.filePath === "string" ? s.filePath.slice(0, 250) : "",
+          relationshipType: typeof s.relationshipType === "string" ? s.relationshipType.slice(0, 50) : typeof s.relation === "string" ? s.relation.slice(0, 50) : undefined,
+          detail: typeof s.detail === "string" ? s.detail.slice(0, 250) : "",
         })),
       };
 

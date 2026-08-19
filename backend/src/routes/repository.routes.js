@@ -1,8 +1,16 @@
 import { Router } from "express";
 import repositoryController from "../controllers/repository.controller.js";
 import { validateRequest } from "../middleware/validateRequest.js";
+import { createRateLimiter } from "../middleware/rateLimiter.js";
 
 const router = Router();
+
+const analysisLimiter = createRateLimiter({
+  name: "analysis",
+  windowMs: 60 * 1000,
+  max: 60, // 60 analysis/ingestion requests per minute per IP
+  message: "Too many repository analysis requests. Please try again in a moment.",
+});
 
 const validateUrlPayload = validateRequest((req) => {
   if (!req.body || typeof req.body !== "object") {
@@ -14,15 +22,15 @@ const validateUrlPayload = validateRequest((req) => {
   return null;
 });
 
-router.post("/validate", validateUrlPayload, (req, res, next) => {
+router.post("/validate", analysisLimiter, validateUrlPayload, (req, res, next) => {
   repositoryController.validateRepository(req, res, next);
 });
 
-router.post("/ingest", validateUrlPayload, (req, res, next) => {
+router.post("/ingest", analysisLimiter, validateUrlPayload, (req, res, next) => {
   repositoryController.ingestRepository(req, res, next);
 });
 
-router.post("/analyze", validateUrlPayload, (req, res, next) => {
+router.post("/analyze", analysisLimiter, validateUrlPayload, (req, res, next) => {
   repositoryController.analyzeAndIngest(req, res, next);
 });
 
@@ -38,7 +46,7 @@ router.get("/:id/tree", (req, res, next) => {
   repositoryController.getFileTree(req, res, next);
 });
 
-router.post("/:id/analyze", (req, res, next) => {
+router.post("/:id/analyze", analysisLimiter, (req, res, next) => {
   repositoryController.analyzeRepository(req, res, next);
 });
 

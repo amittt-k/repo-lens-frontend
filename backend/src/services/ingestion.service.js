@@ -25,10 +25,17 @@ export class IngestionService {
     // 2. Fetch recursive Git file tree from GitHub
     const rawTree = await this.github.fetchRepositoryTree(owner, name, defaultBranch);
 
-    // 3. Filter tree entries according to repository ingestion rules
-    const filteredEntries = rawTree.filter((entry) =>
-      shouldIngestFile(entry.path, entry.type),
-    );
+    // 3. Filter tree entries according to repository ingestion rules and size bounds
+    const MAX_TOTAL_FILES = 5000;
+    const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB individual file ceiling
+
+    const filteredEntries = rawTree
+      .filter((entry) => {
+        if (!shouldIngestFile(entry.path, entry.type)) return false;
+        if (entry.size && entry.size > MAX_FILE_SIZE_BYTES) return false;
+        return true;
+      })
+      .slice(0, MAX_TOTAL_FILES);
 
     // 4. Normalize file records for the database schema
     const filesToInsert = filteredEntries.map((entry) => {

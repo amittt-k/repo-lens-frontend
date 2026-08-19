@@ -36,19 +36,26 @@ export class GraphService {
       throw new GraphServiceError(`Repository with ID "${repositoryId}" not found.`, 404);
     }
 
-    // 2. Query all relevant entities in parallel batch queries
+    // 2. Query all relevant entities in parallel batch queries with size bounds
+    const MAX_GRAPH_NODES = 5000;
+    const MAX_GRAPH_EDGES = 10000;
+
     const [files, symbols, relationships, apiRoutes] = await Promise.all([
       this.db.file.findMany({
         where: { repositoryId },
+        take: MAX_GRAPH_NODES,
       }),
       this.db.symbol.findMany({
         where: { file: { repositoryId } },
+        take: MAX_GRAPH_NODES,
       }),
       this.db.relationship.findMany({
         where: { repositoryId },
+        take: MAX_GRAPH_EDGES,
       }),
       this.db.apiRoute.findMany({
         where: { repositoryId },
+        take: MAX_GRAPH_NODES,
       }),
     ]);
 

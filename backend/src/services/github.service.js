@@ -179,7 +179,9 @@ export class GitHubService {
     }
 
     const data = await response.json();
-    return Array.isArray(data.tree) ? data.tree : [];
+    const tree = Array.isArray(data.tree) ? data.tree : [];
+    const MAX_TREE_ENTRIES = 5000;
+    return tree.slice(0, MAX_TREE_ENTRIES);
   }
 }
 

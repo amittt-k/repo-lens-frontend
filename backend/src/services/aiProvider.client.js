@@ -85,7 +85,7 @@ export async function sendCompletion(systemPrompt, userPrompt, options = {}) {
       }
 
       throw new AiServiceError(
-        `AI provider request failed with status ${status}: ${errorBody || response.statusText}`,
+        `AI provider request failed with status ${status}.`,
         "AI_PROVIDER_ERROR",
         status >= 500 ? 502 : status,
         errorBody,
