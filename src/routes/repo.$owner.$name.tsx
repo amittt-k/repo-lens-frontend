@@ -15,6 +15,8 @@ export const Route = createFileRoute("/repo/$owner/$name")({
 
 function RepoLayout() {
   const { owner, name } = Route.useParams();
+  // Carry workspace search params across the Overview/Graph tabs.
+  const search = Route.useSearch();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -42,7 +44,7 @@ function RepoLayout() {
               <Link
                 to="/repo/$owner/$name"
                 params={{ owner, name }}
-                search={(prev) => prev}
+                search={search}
                 activeOptions={{ exact: true }}
                 activeProps={{ className: "bg-elevated text-foreground" }}
               >
@@ -54,7 +56,7 @@ function RepoLayout() {
               <Link
                 to="/repo/$owner/$name/graph"
                 params={{ owner, name }}
-                search={(prev) => prev}
+                search={search}
                 activeProps={{ className: "bg-elevated text-foreground" }}
               >
                 <Network className="size-3.5" />
