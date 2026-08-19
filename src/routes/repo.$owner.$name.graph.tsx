@@ -7,14 +7,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileExplorer } from "@/components/repolens/FileExplorer";
 import { FlowTracePanel } from "@/components/repolens/FlowTracePanel";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
-import {
-  RelationshipFilters,
-  type FilterState,
-} from "@/components/repolens/RelationshipFilters";
+import { RelationshipFilters } from "@/components/repolens/RelationshipFilters";
 import { SearchPalette } from "@/components/repolens/SearchPalette";
 import { EmptyState, PanelHeading } from "@/components/repolens/primitives";
 import { mockFlows, mockGraphEdges, mockGraphNodes } from "@/data/mock-repo";
-import { allKinds, allRelations } from "@/lib/graph-tokens";
+import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 
 // React Flow measures real DOM, so the canvas is loaded on the client only.
 const GraphCanvas = lazy(() => import("@/components/repolens/graph/GraphCanvas"));
@@ -179,8 +176,7 @@ function GraphWorkspace() {
               edges={mockGraphEdges}
               onTrace={() => {
                 const flow = mockFlows.find((f) => f.steps.some((s) => s.nodeId === selectedId));
-                setFlowId(flow?.id ?? mockFlows[0]!.id);
-                setTraceMode(true);
+                setActiveFlowId(flow?.id ?? mockFlows[0]!.id);
               }}
             />
           </div>
