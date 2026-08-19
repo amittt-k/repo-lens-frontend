@@ -42,6 +42,7 @@ function RepoLayout() {
               <Link
                 to="/repo/$owner/$name"
                 params={{ owner, name }}
+                search={(prev) => prev}
                 activeOptions={{ exact: true }}
                 activeProps={{ className: "bg-elevated text-foreground" }}
               >
@@ -53,6 +54,7 @@ function RepoLayout() {
               <Link
                 to="/repo/$owner/$name/graph"
                 params={{ owner, name }}
+                search={(prev) => prev}
                 activeProps={{ className: "bg-elevated text-foreground" }}
               >
                 <Network className="size-3.5" />
