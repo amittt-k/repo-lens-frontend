@@ -7,24 +7,29 @@ import type { NodeKind, RelationKind } from "@/data/mock-repo";
 import { kindLabels } from "@/data/mock-repo";
 import { kindTokens, relationTokens } from "@/lib/graph-tokens";
 
-export function KindBadge({ kind, className }: { kind: NodeKind; className?: string }) {
+import { getKindTokens, getRelationTokens } from "@/lib/graph-tokens";
+
+export function KindBadge({ kind, className }: { kind: string; className?: string }) {
+  const tokens = getKindTokens(kind);
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest",
-        kindTokens[kind].badge,
+        tokens.badge,
         className,
       )}
     >
       <span className="size-1.5 rounded-full bg-current" />
-      {kindLabels[kind]}
+      {tokens.label}
     </span>
   );
 }
 
-export function RelationDot({ relation }: { relation: RelationKind }) {
-  return <span className={cn("size-2 rounded-full bg-current", relationTokens[relation].text)} />;
+export function RelationDot({ relation }: { relation: string }) {
+  const tokens = getRelationTokens(relation);
+  return <span className={cn("size-2 rounded-full bg-current", tokens.text)} />;
 }
+
 
 export function PanelHeading({
   title,

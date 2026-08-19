@@ -13,10 +13,10 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
-import { relationTokens } from "@/lib/graph-tokens";
+import { getRelationTokens } from "@/lib/graph-tokens";
 import { GraphToolbar } from "../GraphToolbar";
 import { CodeNode, type CodeNodePayload } from "./CodeNode";
 
@@ -27,66 +27,114 @@ export interface GraphCanvasProps {
   edges: GraphEdgeData[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  traceNodeIds: string[];
-  traceActive: boolean;
-  onTraceToggle: (next: boolean) => void;
+  traceNodeIds?: string[];
+  traceActive?: boolean;
+  onTraceToggle?: (next: boolean) => void;
   onOpenSearch: () => void;
   panelOpen: boolean;
   onPanelToggle: () => void;
   onOpenSidebar?: (() => void) | undefined;
 }
 
+function computeConnectedNeighbors(
+  selectedId: string | null,
+  edges: GraphEdgeData[],
+): Set<string> {
+  const neighbors = new Set<string>();
+  if (!selectedId) return neighbors;
+
+  neighbors.add(selectedId);
+  for (const edge of edges) {
+    if (edge.source === selectedId) {
+      neighbors.add(edge.target);
+    } else if (edge.target === selectedId) {
+      neighbors.add(edge.source);
+    }
+  }
+  return neighbors;
+}
+
 function mapNodes(
   sourceNodes: GraphNodeData[],
   seed: number,
   selectedId: string | null,
-  traceIds: string[],
-  isTraceActive: boolean,
+  connectedIds: Set<string>,
+  traceIds: string[] = [],
+  isTraceActive = false,
   prevNodes?: Node[],
 ): Node[] {
   const prevPosById = new Map(prevNodes?.map((n) => [n.id, n.position]));
   return sourceNodes.map((n, i) => {
-    const defaultPos = seed === 0 ? n.position : { x: (i % 3) * 290, y: Math.floor(i / 3) * 170 };
+    const cols = 5;
+    const defaultPos =
+      seed === 0
+        ? n.position
+        : { x: (i % cols) * 300 + 40, y: Math.floor(i / cols) * 170 + 40 };
+
     const position = prevPosById.get(n.id) ?? defaultPos;
+    const isSelected = selectedId === n.id;
+    const isNeighbor = connectedIds.has(n.id);
+    const hasSelection = Boolean(selectedId);
+    const dimmed = hasSelection ? !isSelected && !isNeighbor : isTraceActive && traceIds.length > 0 && !traceIds.includes(n.id);
+
     return {
       id: n.id,
       type: "code",
       position,
-      selected: selectedId === n.id,
+      selected: isSelected,
       data: {
         label: n.label,
         path: n.path,
         kind: n.kind,
         loc: n.loc,
         inTrace: traceIds.includes(n.id),
-        dimmed: isTraceActive && traceIds.length > 0 && !traceIds.includes(n.id),
+        inHighlight: isNeighbor && !isSelected,
+        dimmed,
       } satisfies CodeNodePayload,
     } satisfies Node;
   });
 }
 
-function mapEdges(sourceEdges: GraphEdgeData[], traceIds: string[], isTraceActive: boolean): Edge[] {
+function mapEdges(
+  sourceEdges: GraphEdgeData[],
+  selectedId: string | null,
+  traceIds: string[] = [],
+  isTraceActive = false,
+): Edge[] {
+  const hasSelection = Boolean(selectedId);
+
   return sourceEdges.map((e) => {
+    const isConnected = hasSelection && (e.source === selectedId || e.target === selectedId);
     const inTrace = traceIds.includes(e.source) && traceIds.includes(e.target);
-    const dimmed = isTraceActive && traceIds.length > 0 && !inTrace;
+    const dimmed = hasSelection ? !isConnected : isTraceActive && traceIds.length > 0 && !inTrace;
+
+    const relTokens = getRelationTokens(e.relation || (e as any).relationshipType || (e as any).symbol);
+
     return {
       id: e.id,
       source: e.source,
       target: e.target,
-      label: e.symbol,
-      animated: inTrace,
+      label: relTokens.label,
+      animated: isConnected || inTrace,
       style: {
-        stroke: inTrace ? "var(--color-primary)" : relationTokens[e.relation].cssVar,
-        strokeWidth: inTrace ? 2 : 1.2,
-        opacity: dimmed ? 0.12 : 0.75,
-        strokeDasharray: e.relation === "export" ? "4 3" : undefined,
+        stroke: isConnected
+          ? "var(--color-primary)"
+          : inTrace
+            ? "var(--color-primary)"
+            : relTokens.cssVar,
+        strokeWidth: isConnected ? 2.5 : inTrace ? 2 : 1.2,
+        opacity: dimmed ? 0.1 : isConnected ? 1 : 0.8,
+        strokeDasharray: relTokens.dash,
       },
       labelStyle: {
         fill: "var(--color-muted-foreground)",
         fontSize: 9,
         fontFamily: "var(--font-mono)",
       },
-      labelBgStyle: { fill: "var(--color-background)", opacity: dimmed ? 0 : 0.9 },
+      labelBgStyle: {
+        fill: "var(--color-background)",
+        opacity: dimmed ? 0 : 0.9,
+      },
     } satisfies Edge;
   });
 }
@@ -96,31 +144,62 @@ function Canvas(props: GraphCanvasProps) {
   const [layoutSeed, setLayoutSeed] = useState(0);
   const lastSelectedIdRef = useRef<string | null>(null);
 
+  const connectedNeighborIds = useMemo(
+    () => computeConnectedNeighbors(props.selectedId, props.edges),
+    [props.selectedId, props.edges],
+  );
+
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(
-    mapNodes(props.nodes, 0, props.selectedId, props.traceNodeIds, props.traceActive),
+    mapNodes(
+      props.nodes,
+      0,
+      props.selectedId,
+      connectedNeighborIds,
+      props.traceNodeIds,
+      props.traceActive,
+    ),
   );
 
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(
-    mapEdges(props.edges, props.traceNodeIds, props.traceActive),
+    mapEdges(props.edges, props.selectedId, props.traceNodeIds, props.traceActive),
   );
 
   // Sync nodes when inputs change, preserving dragged positions
   useEffect(() => {
     setNodes((prev) =>
-      mapNodes(props.nodes, layoutSeed, props.selectedId, props.traceNodeIds, props.traceActive, prev),
+      mapNodes(
+        props.nodes,
+        layoutSeed,
+        props.selectedId,
+        connectedNeighborIds,
+        props.traceNodeIds,
+        props.traceActive,
+        prev,
+      ),
     );
-  }, [props.nodes, props.selectedId, props.traceNodeIds, props.traceActive, layoutSeed, setNodes]);
+  }, [
+    props.nodes,
+    props.selectedId,
+    connectedNeighborIds,
+    props.traceNodeIds,
+    props.traceActive,
+    layoutSeed,
+    setNodes,
+  ]);
 
-  // Sync edges when edges or trace state changes
+  // Sync edges when edges or selection/trace state changes
   useEffect(() => {
-    setEdges(mapEdges(props.edges, props.traceNodeIds, props.traceActive));
-  }, [props.edges, props.traceNodeIds, props.traceActive, setEdges]);
+    setEdges(mapEdges(props.edges, props.selectedId, props.traceNodeIds, props.traceActive));
+  }, [props.edges, props.selectedId, props.traceNodeIds, props.traceActive, setEdges]);
 
   const focusNode = useCallback(
     (id: string) => {
       const node = getNode(id) ?? props.nodes.find((n) => n.id === id);
       if (node) {
-        setCenter(node.position.x + 100, node.position.y + 40, { zoom: 1.1, duration: 400 });
+        setCenter(node.position.x + 110, node.position.y + 40, {
+          zoom: 1.1,
+          duration: 400,
+        });
       }
     },
     [getNode, props.nodes, setCenter],
@@ -141,11 +220,11 @@ function Canvas(props: GraphCanvasProps) {
       <GraphToolbar
         onZoomIn={() => zoomIn({ duration: 200 })}
         onZoomOut={() => zoomOut({ duration: 200 })}
-        onFit={() => fitView({ duration: 300, padding: 0.2 })}
-        onRelayout={() => setLayoutSeed((s) => (s === 0 ? 1 : 0))}
+        onFit={() => fitView({ duration: 300, padding: 0.25 })}
+        onRelayout={() => setLayoutSeed((s) => s + 1)}
         onOpenSearch={props.onOpenSearch}
-        traceActive={props.traceActive}
-        onTraceToggle={props.onTraceToggle}
+        traceActive={Boolean(props.traceActive)}
+        onTraceToggle={props.onTraceToggle || (() => {})}
         panelOpen={props.panelOpen}
         onPanelToggle={props.onPanelToggle}
         onOpenSidebar={props.onOpenSidebar}
@@ -161,8 +240,8 @@ function Canvas(props: GraphCanvasProps) {
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ padding: 0.25 }}
-          minZoom={0.3}
-          maxZoom={2}
+          minZoom={0.2}
+          maxZoom={2.5}
           proOptions={{ hideAttribution: false }}
           onNodeClick={(_, node) => {
             lastSelectedIdRef.current = node.id;
@@ -174,13 +253,21 @@ function Canvas(props: GraphCanvasProps) {
             props.onSelect(null);
           }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="var(--color-border-strong)" />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={22}
+            size={1}
+            color="var(--color-border-strong)"
+          />
           <Controls showInteractive={false} position="bottom-left" />
           <MiniMap
             pannable
             zoomable
             maskColor="oklch(0.17 0.014 260 / 0.7)"
-            style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+            style={{
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
             nodeColor={() => "var(--color-border-strong)"}
             className="hidden sm:block"
           />

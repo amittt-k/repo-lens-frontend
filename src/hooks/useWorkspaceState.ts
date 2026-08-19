@@ -6,10 +6,14 @@ import {
   mockFlows,
   mockGraphNodes,
   type GraphNodeData,
+} from "@/data/mock-repo";
+import {
+  allKinds,
+  allRelations,
   type NodeKind,
   type RelationKind,
-} from "@/data/mock-repo";
-import { allKinds, allRelations } from "@/lib/graph-tokens";
+} from "@/lib/graph-tokens";
+
 
 
 /**
@@ -46,7 +50,11 @@ function decodeList<T extends string>(raw: string | undefined, allowed: T[]): T[
   const picked = raw
     .split(",")
     .map((part) => part.trim())
-    .filter((part): part is T => (allowed as string[]).includes(part));
+    .map((part) => {
+      const match = allowed.find((a) => a.toLowerCase() === part.toLowerCase());
+      return match || (part as T);
+    })
+    .filter((part): part is T => (allowed as string[]).some((a) => a.toLowerCase() === part.toLowerCase()));
   return picked;
 }
 
@@ -55,6 +63,7 @@ function encodeList<T extends string>(list: T[], allowed: T[]): string | undefin
   if (list.length === allowed.length) return undefined;
   return list.join(",");
 }
+
 
 export function useWorkspaceState(customNodes?: GraphNodeData[]) {
   const search = useSearch({ from: "/repo/$owner/$name" });

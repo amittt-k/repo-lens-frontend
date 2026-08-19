@@ -7,11 +7,18 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import type { GraphNodeData } from "@/data/mock-repo";
-import { kindLabels } from "@/data/mock-repo";
+import { getKindTokens } from "@/lib/graph-tokens";
+
+export interface SearchNodeItem {
+  id: string;
+  label: string;
+  path?: string;
+  kind?: string;
+  exports?: string[];
+}
 
 export interface SearchPaletteProps {
-  nodes?: GraphNodeData[] | undefined;
+  nodes?: SearchNodeItem[] | undefined;
   visibleIds?: Set<string> | string[] | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,10 +34,10 @@ export function SearchPalette({
 }: SearchPaletteProps) {
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Search files, modules and symbols…" />
+      <CommandInput placeholder="Search files, functions, classes and routes…" />
       <CommandList>
         <CommandEmpty>No nodes match that query.</CommandEmpty>
-        <CommandGroup heading="Nodes">
+        <CommandGroup heading="Graph Nodes">
           {nodes.map((node) => {
             const isVisible = visibleIds
               ? visibleIds instanceof Set
@@ -38,10 +45,14 @@ export function SearchPalette({
                 : visibleIds.includes(node.id)
               : true;
 
+            const tokens = getKindTokens(node.kind);
+            const exportText = (node.exports || []).join(" ");
+            const searchValue = `${node.label} ${node.path || ""} ${tokens.label} ${exportText}`.trim();
+
             return (
               <CommandItem
                 key={node.id}
-                value={`${node.label} ${node.path} ${node.exports.join(" ")}`}
+                value={searchValue}
                 disabled={!isVisible}
                 onSelect={() => {
                   if (!isVisible) return;
@@ -54,7 +65,7 @@ export function SearchPalette({
                   <span className="flex items-center gap-2">
                     <span
                       className={cn(
-                        "block truncate font-mono text-xs",
+                        "block truncate font-mono text-xs font-medium",
                         isVisible ? "text-foreground" : "text-muted-foreground line-through",
                       )}
                     >
@@ -66,12 +77,14 @@ export function SearchPalette({
                       </span>
                     ) : null}
                   </span>
-                  <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                    {node.path}
-                  </span>
+                  {node.path ? (
+                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                      {node.path}
+                    </span>
+                  ) : null}
                 </span>
-                <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {kindLabels[node.kind]}
+                <span className={cn("rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest shrink-0", tokens.badge)}>
+                  {tokens.label}
                 </span>
               </CommandItem>
             );

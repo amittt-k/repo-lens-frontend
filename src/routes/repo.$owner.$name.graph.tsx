@@ -15,7 +15,7 @@ import { GraphSidebar } from "@/components/repolens/GraphSidebar";
 import { NodeDetailsPanel } from "@/components/repolens/NodeDetailsPanel";
 import { SearchPalette } from "@/components/repolens/SearchPalette";
 import { EmptyState } from "@/components/repolens/primitives";
-import type { GraphEdgeData, GraphNodeData, NodeKind, RelationKind } from "@/data/mock-repo";
+import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
 import { useGraphShortcuts } from "@/hooks/useGraphShortcuts";
 import { useRepositoryFiles, useRepositoryGraph } from "@/hooks/useRepositoryData";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
@@ -26,7 +26,7 @@ const GraphCanvas = lazy(() => import("@/components/repolens/graph/GraphCanvas")
 export const Route = createFileRoute("/repo/$owner/$name/graph")({
   head: ({ params }) => {
     const title = `${params.owner}/${params.name} graph workspace — RepoLens`;
-    const description = `Interactive dependency graph, relationship filters and flow tracing for ${params.owner}/${params.name}.`;
+    const description = `Interactive dependency graph, relationship filters and code navigation for ${params.owner}/${params.name}.`;
     return {
       meta: [
         { title },
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/repo/$owner/$name/graph")({
 function CanvasFallback() {
   return (
     <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
-      <Loader2 className="size-4 animate-spin" />
+      <Loader2 className="size-4 animate-spin text-primary" />
       Preparing graph canvas…
     </div>
   );
@@ -55,20 +55,28 @@ function GraphWorkspace() {
   const { data: graphData, isLoading: graphLoading } = useRepositoryGraph(repoId);
   const { data: fileTree } = useRepositoryFiles(repoId);
 
+  // Group nodes by file path for structured hierarchical/columnar positioning
   const mappedNodes: GraphNodeData[] = useMemo(() => {
     if (!graphData?.nodes) return [];
-    const cols = 5;
+
+    const fileGroups: Record<string, number> = {};
+    let groupIndex = 0;
+
     return graphData.nodes.map((n, i) => {
-      let kind: NodeKind = "module";
-      if (n.type === "component") kind = "component";
-      else if (n.type === "function" || n.type === "method") kind = "function";
-      else if (n.type === "package") kind = "external";
-      else kind = "module";
-
-      const x = (i % cols) * 320 + 50;
-      const y = Math.floor(i / cols) * 180 + 50;
-
+      const kind = (n.type || "file").toLowerCase() as any;
       const nData = (n.data || {}) as Record<string, any>;
+      const filePath = nData["filePath"] || "root";
+
+      if (fileGroups[filePath] === undefined) {
+        fileGroups[filePath] = groupIndex++;
+      }
+
+      const col = fileGroups[filePath] % 6;
+      const row = Math.floor(fileGroups[filePath] / 6) * 4 + (i % 4);
+
+      const x = col * 320 + 40;
+      const y = row * 160 + 40;
+
       return {
         id: n.id,
         label: n.label,
@@ -83,25 +91,16 @@ function GraphWorkspace() {
     });
   }, [graphData]);
 
-
   const mappedEdges: GraphEdgeData[] = useMemo(() => {
     if (!graphData?.edges) return [];
     return graphData.edges.map((e) => {
-      let relation: RelationKind = "import";
-      const relUpper = (e.relationshipType || "").toUpperCase();
-      if (relUpper === "CALLS" || relUpper === "CALLS_API" || relUpper === "HANDLES_ROUTE") {
-        relation = "call";
-      } else if (relUpper === "EXPORTS") {
-        relation = "export";
-      } else {
-        relation = "import";
-      }
+      const relUpper = (e.relationshipType || "IMPORTS").toUpperCase();
 
       return {
         id: e.id,
         source: e.source,
         target: e.target,
-        relation,
+        relation: relUpper as any,
         symbol: e.relationshipType,
       };
     });
@@ -130,15 +129,22 @@ function GraphWorkspace() {
   useGraphShortcuts({ onOpenSearch: () => setSearchOpen(true) });
 
   const nodes = useMemo(
-    () => mappedNodes.filter((n) => filters.kinds.includes(n.kind)),
+    () =>
+      mappedNodes.filter((n) =>
+        filters.kinds.some((k) => k.toLowerCase() === n.kind.toLowerCase()),
+      ),
     [mappedNodes, filters.kinds],
   );
+
   const visibleIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
+
   const edges = useMemo(
     () =>
       mappedEdges.filter(
         (e) =>
-          filters.relations.includes(e.relation) &&
+          filters.relations.some(
+            (r) => r.toUpperCase() === (e.relation as string).toUpperCase(),
+          ) &&
           visibleIds.has(e.source) &&
           visibleIds.has(e.target),
       ),
@@ -188,8 +194,8 @@ function GraphWorkspace() {
               onSelectNode={setSelectedId}
               activeFlowId={activeFlowId}
               onFlowChange={setActiveFlowId}
-              filters={filters}
-              onFiltersChange={setFilters}
+              filters={filters as any}
+              onFiltersChange={setFilters as any}
               className="space-y-3 pr-2"
               explorerHeight="h-[300px]"
             />
@@ -207,7 +213,11 @@ function GraphWorkspace() {
         ) : nodes.length === 0 ? (
           <div className="flex h-full flex-1 items-center justify-center p-6">
             <EmptyState
-              title={mappedNodes.length === 0 ? "No graph nodes discovered" : "Every node is filtered out"}
+              title={
+                mappedNodes.length === 0
+                  ? "No graph nodes discovered"
+                  : "Every node is filtered out"
+              }
               description={
                 mappedNodes.length === 0
                   ? "This repository has no supported AST symbols or modules in its static analysis graph."
@@ -265,11 +275,14 @@ function GraphWorkspace() {
 
       {/* Mobile Left Sheet: Structure & Filters */}
       <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-        <SheetContent side="left" className="flex h-full w-[85vw] max-w-sm flex-col p-0 sm:max-w-md">
+        <SheetContent
+          side="left"
+          className="flex h-full w-[85vw] max-w-sm flex-col p-0 sm:max-w-md"
+        >
           <SheetHeader className="border-b border-border p-4 text-left">
             <SheetTitle className="text-base font-semibold">Repository controls</SheetTitle>
             <SheetDescription className="text-xs text-muted-foreground">
-              File structure, relationship filters and flow tracing.
+              File structure, relationship filters and code navigation.
             </SheetDescription>
           </SheetHeader>
           <ScrollArea className="min-h-0 flex-1">
@@ -284,8 +297,8 @@ function GraphWorkspace() {
                 }}
                 activeFlowId={activeFlowId}
                 onFlowChange={setActiveFlowId}
-                filters={filters}
-                onFiltersChange={setFilters}
+                filters={filters as any}
+                onFiltersChange={setFilters as any}
                 className="space-y-3"
                 explorerHeight="h-[280px]"
               />
@@ -296,11 +309,14 @@ function GraphWorkspace() {
 
       {/* Mobile Right Sheet: Node Details & AI */}
       <Sheet open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
-        <SheetContent side="right" className="flex h-full w-[85vw] max-w-sm flex-col p-0 sm:max-w-md">
+        <SheetContent
+          side="right"
+          className="flex h-full w-[85vw] max-w-sm flex-col p-0 sm:max-w-md"
+        >
           <SheetHeader className="border-b border-border p-4 text-left">
             <SheetTitle className="text-base font-semibold">Node inspection</SheetTitle>
             <SheetDescription className="text-xs text-muted-foreground">
-              Relationships, exported symbols and AI explanation.
+              Relationships, entity details and source locations.
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 p-4">
@@ -323,4 +339,3 @@ function GraphWorkspace() {
     </main>
   );
 }
-
