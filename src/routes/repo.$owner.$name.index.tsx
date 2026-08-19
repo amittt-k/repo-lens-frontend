@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Network } from "lucide-react";
-import { useState } from "react";
+
 
 import { Button } from "@/components/ui/button";
 import { AiExplanationPanel } from "@/components/repolens/AiExplanationPanel";
@@ -14,6 +14,7 @@ import {
   relationLabels,
   type RelationKind,
 } from "@/data/mock-repo";
+import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 
 export const Route = createFileRoute("/repo/$owner/$name/")({
   head: ({ params }) => {
@@ -145,8 +146,8 @@ function Overview() {
 
         <div className="grid content-start gap-4">
           <FlowTracePanel
-            activeFlowId={flowId}
-            onFlowChange={setFlowId}
+            activeFlowId={activeFlowId}
+            onFlowChange={setActiveFlowId}
             onStepSelect={(nodeId) => setSelectedId(nodeId)}
             selectedNodeId={selectedId}
           />
