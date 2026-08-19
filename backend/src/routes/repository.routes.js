@@ -18,4 +18,9 @@ router.post("/validate", validateUrlPayload, (req, res, next) => {
   repositoryController.validateRepository(req, res, next);
 });
 
+router.post("/ingest", validateUrlPayload, (req, res, next) => {
+  repositoryController.ingestRepository(req, res, next);
+});
+
 export default router;
+

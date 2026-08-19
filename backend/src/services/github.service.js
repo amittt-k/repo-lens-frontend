@@ -116,7 +116,73 @@ export class GitHubService {
       },
     };
   }
+
+  /**
+   * Fetches the complete recursive file tree of a repository branch.
+   *
+   * @param {string} owner - Repository owner login.
+   * @param {string} name - Repository name.
+   * @param {string} [branch="main"] - Target branch or ref.
+   * @returns {Promise<Array<{ path: string, type: string, size?: number, sha: string }>>}
+   */
+  async fetchRepositoryTree(owner, name, branch = "main") {
+    const headers = {
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "RepoLens-Analyzer",
+    };
+
+    if (this.token) {
+      headers.Authorization = `token ${this.token}`;
+    }
+
+    let response;
+    try {
+      response = await this.fetchFn(
+        `${this.apiBaseUrl}/repos/${owner}/${name}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+        {
+          method: "GET",
+          headers,
+        },
+      );
+    } catch (networkErr) {
+      throw new GitHubApiError(
+        `Failed to reach GitHub API while fetching tree: ${networkErr.message}`,
+        502,
+        networkErr,
+      );
+    }
+
+    if (response.status === 404 || response.status === 409) {
+      // Could be an empty repository without commits
+      return [];
+    }
+
+    if (response.status === 403 || response.status === 429) {
+      const remaining = response.headers?.get?.("x-ratelimit-remaining");
+      if (remaining === "0" || response.status === 429) {
+        throw new GitHubApiError(
+          "GitHub API rate limit exceeded. Please try again in a few minutes.",
+          429,
+        );
+      }
+      throw new GitHubApiError(
+        `GitHub API access forbidden: ${response.statusText || "Forbidden"}`,
+        403,
+      );
+    }
+
+    if (!response.ok) {
+      throw new GitHubApiError(
+        `GitHub API tree retrieval failed (${response.status}): ${response.statusText || "Unknown error"}`,
+        response.status >= 500 ? 502 : response.status,
+      );
+    }
+
+    const data = await response.json();
+    return Array.isArray(data.tree) ? data.tree : [];
+  }
 }
 
 export const githubService = new GitHubService();
 export default githubService;
+
