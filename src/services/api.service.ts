@@ -7,7 +7,7 @@
 import type { TracedFlow } from "@/utils/flowTracing";
 
 const API_BASE_URL =
-  typeof window !== "undefined" && import.meta.env["VITE_API_URL"]
+  typeof window !== "undefined" && import.meta.env?.["VITE_API_URL"]
     ? import.meta.env["VITE_API_URL"]
     : "http://localhost:5000/api";
 

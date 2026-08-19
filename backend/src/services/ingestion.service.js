@@ -7,6 +7,7 @@ export class IngestionService {
   constructor(options = {}) {
     this.github = options.githubService || githubService;
     this.db = options.prisma || prisma;
+    this.inFlight = new Map();
   }
 
   /**
@@ -17,6 +18,24 @@ export class IngestionService {
    * @returns {Promise<object>} - Ingestion summary with repository metadata and stats.
    */
   async ingestRepository(url) {
+    const key = (url || "").trim().toLowerCase();
+    if (this.inFlight.has(key)) {
+      return this.inFlight.get(key);
+    }
+
+    const promise = (async () => {
+      try {
+        return await this._doIngest(url);
+      } finally {
+        this.inFlight.delete(key);
+      }
+    })();
+
+    this.inFlight.set(key, promise);
+    return promise;
+  }
+
+  async _doIngest(url) {
     // 1. Validate URL and retrieve repository overview metadata
     const validation = await this.github.validateAndFetchRepository(url);
     const repoMeta = validation.repository;

@@ -10,6 +10,10 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "test:components": "tsx --test scripts/frontend-components.test.js",
+    "test:flow": "node --test scripts/flow-tracing.test.js",
+    "test:ai": "node --test scripts/frontend-ai.test.js",
+    "test": "tsx --test scripts/frontend-components.test.js && node --test scripts/flow-tracing.test.js && node --test scripts/frontend-ai.test.js",
     "backend:start": "node backend/src/server.js",
     "backend:dev": "node --watch backend/src/server.js"
   },
@@ -71,6 +75,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^2.15.0",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -81,8 +86,10 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jsdom": "^29.1.1",
     "nitro": "3.0.260603-beta",
     "prettier": "^3.7.3",
+    "tsx": "^4.23.12",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.2.0"
