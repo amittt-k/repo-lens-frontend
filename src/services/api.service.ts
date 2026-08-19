@@ -4,6 +4,8 @@
  * Connects frontend views to backend REST APIs (Phase 14).
  */
 
+import type { TracedFlow } from "@/utils/flowTracing";
+
 const API_BASE_URL =
   typeof window !== "undefined" && import.meta.env["VITE_API_URL"]
     ? import.meta.env["VITE_API_URL"]
@@ -318,7 +320,7 @@ export const apiService = {
   /**
    * Requests an AI-generated explanation for an active deterministic flow trace.
    */
-  async explainFlow(flow: any): Promise<AiExplanationResponse> {
+  async explainFlow(flow: TracedFlow): Promise<AiExplanationResponse> {
     return request("/ai/explain/flow", {
       method: "POST",
       body: JSON.stringify({ flow }),

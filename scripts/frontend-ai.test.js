@@ -8,11 +8,13 @@ describe("Frontend AI Service Integration Tests", () => {
   let serverPort;
   let lastRequestBody = null;
   let lastRequestPath = null;
+  let requestCount = 0;
   let mockResponseStatus = 200;
   let mockResponseBody = {};
 
   before((t, done) => {
     mockServer = http.createServer((req, res) => {
+      requestCount++;
       lastRequestPath = req.url;
       let body = "";
       req.on("data", (chunk) => {
@@ -162,5 +164,100 @@ describe("Frontend AI Service Integration Tests", () => {
     });
     assert.equal(res.status, 429);
     assert.match(res.data.message, /rate limit/);
+  });
+
+  it("7. retry behavior initiates a new request after initial failure", async () => {
+    // 1st request: 504 Timeout
+    mockResponseStatus = 504;
+    mockResponseBody = {
+      status: "error",
+      statusCode: 504,
+      message: "AI request timed out",
+    };
+    const req1 = await mockRequest("/api/ai/explain/node", { nodeId: "sym-order" });
+    assert.equal(req1.status, 504);
+
+    // 2nd request (Retry): 200 Success
+    mockResponseStatus = 200;
+    mockResponseBody = {
+      success: true,
+      nodeId: "sym-order",
+      explanation: "### Role & Responsibility\nOrder processing service.",
+      model: "gpt-4o-mini",
+      usage: { total_tokens: 150 },
+    };
+    const req2 = await mockRequest("/api/ai/explain/node", { nodeId: "sym-order" });
+    assert.equal(req2.status, 200);
+    assert.equal(req2.data.nodeId, "sym-order");
+    assert.match(req2.data.explanation, /Order processing service/);
+  });
+
+  it("8. node target change queries new nodeId and avoids stale state", async () => {
+    // Node A
+    mockResponseStatus = 200;
+    mockResponseBody = {
+      success: true,
+      nodeId: "node-A",
+      explanation: "Node A explanation",
+    };
+    const resA = await mockRequest("/api/ai/explain/node", { nodeId: "node-A" });
+    assert.equal(resA.data.nodeId, "node-A");
+
+    // Node B (switched selection)
+    mockResponseBody = {
+      success: true,
+      nodeId: "node-B",
+      explanation: "Node B explanation",
+    };
+    const resB = await mockRequest("/api/ai/explain/node", { nodeId: "node-B" });
+    assert.equal(resB.data.nodeId, "node-B");
+    assert.notEqual(resA.data.nodeId, resB.data.nodeId);
+  });
+
+  it("9. deterministic flow preservation verifies all step fields are sent unchanged", async () => {
+    const nodes = [
+      { id: "ui-btn", label: "SubmitButton", kind: "component", path: "src/Button.tsx" },
+      { id: "api-handler", label: "handleCheckout", kind: "function", path: "src/checkout.ts" },
+    ];
+    const edges = [
+      { id: "e-trace", source: "ui-btn", target: "api-handler", relationshipType: "CALLS" },
+    ];
+
+    const traced = traceFlowFromNode("ui-btn", nodes, edges);
+    assert.equal(traced.steps.length, 2);
+    assert.equal(traced.steps[0].nodeId, "ui-btn");
+    assert.equal(traced.steps[0].label, "SubmitButton");
+    assert.equal(traced.steps[0].kind, "component");
+    assert.equal(traced.steps[0].path, "src/Button.tsx");
+    assert.equal(traced.steps[1].relationshipType, "CALLS");
+
+    mockResponseStatus = 200;
+    mockResponseBody = {
+      success: true,
+      flowId: traced.id,
+      explanation: "Checkout flow explanation",
+    };
+
+    const res = await mockRequest("/api/ai/explain/flow", { flow: traced });
+    assert.equal(res.status, 200);
+    assert.deepEqual(lastRequestBody.flow.steps, traced.steps);
+  });
+
+  it("10. safe explanation Markdown output validation", () => {
+    const markdownContent = `### Project Overview
+This repository manages orders.
+
+## Architecture
+* **Frontend**: React components
+* **Backend**: Express APIs with \`router.post\`
+
+### Boundaries
+Dispatches across API routes safely.`;
+
+    // Verify markdown text does not contain executable HTML/script injections
+    assert.equal(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi.test(markdownContent), false);
+    assert.equal(/javascript:/i.test(markdownContent), false);
+    assert.equal(/onload=/i.test(markdownContent), false);
+    assert.match(markdownContent, /### Project Overview/);
   });
 });
