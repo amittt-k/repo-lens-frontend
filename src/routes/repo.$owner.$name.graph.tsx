@@ -126,11 +126,8 @@ function GraphWorkspace() {
               </section>
               <RelationshipFilters value={filters} onChange={setFilters} />
               <FlowTracePanel
-                activeFlowId={flowId}
-                onFlowChange={(id) => {
-                  setFlowId(id);
-                  setTraceMode(Boolean(id));
-                }}
+                activeFlowId={activeFlowId}
+                onFlowChange={setActiveFlowId}
                 onStepSelect={setSelectedId}
                 selectedNodeId={selectedId}
               />
