@@ -71,6 +71,22 @@ function Overview() {
       .slice(0, 4);
   }, [graphData]);
 
+  const nodesById = useMemo(() => {
+    if (!graphData?.nodes) return {};
+    return Object.fromEntries(
+      graphData.nodes.map((n) => [
+        n.id,
+        {
+          id: n.id,
+          label: n.label,
+          kind: n.type,
+          path: (n.data as any)?.filePath || "",
+          loc: (n.data as any)?.loc,
+        },
+      ]),
+    );
+  }, [graphData]);
+
   const isLoading = (repoLoading || filesLoading || graphLoading) && !repository && !graphData;
 
   return (
@@ -148,8 +164,11 @@ function Overview() {
             <div className="grid content-start gap-4">
               <NodeDetailsPanel
                 node={selectedId ? { id: selectedId, label: selectedId } : null}
+                nodesById={nodesById}
+                onSelectNode={(id) => setSelectedId(id)}
                 edges={[]}
               />
+
 
               <Button
                 variant="outline"

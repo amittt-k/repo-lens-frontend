@@ -268,6 +268,7 @@ function GraphWorkspace() {
               node={selected}
               edges={mappedEdges}
               nodesById={nodesById}
+              onSelectNode={setSelectedId}
             />
           </div>
         </aside>
@@ -324,10 +325,14 @@ function GraphWorkspace() {
               node={selected}
               edges={mappedEdges}
               nodesById={nodesById}
+              onSelectNode={(nodeId) => {
+                setSelectedId(nodeId);
+              }}
             />
           </div>
         </SheetContent>
       </Sheet>
+
 
       <SearchPalette
         nodes={mappedNodes}

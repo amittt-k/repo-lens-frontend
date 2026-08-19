@@ -1,9 +1,26 @@
-import { ArrowDownLeft, ArrowUpRight, FileCode2, Loader2, MousePointerClick } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Box,
+  Component,
+  ExternalLink,
+  FileCode,
+  FileCode2,
+  Globe,
+  Layers,
+  Loader2,
+  MousePointerClick,
+  Package,
+  Route as RouteIcon,
+  Terminal,
+  Variable,
+} from "lucide-react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNodeDetails, useNodeRelationships } from "@/hooks/useRepositoryData";
+import { getKindTokens, getRelationTokens } from "@/lib/graph-tokens";
 import { AiExplanationPanel } from "./AiExplanationPanel";
 import { EmptyState, KindBadge, PanelHeading, RelationDot } from "./primitives";
 
@@ -20,15 +37,39 @@ export interface NodeDetailsPanelProps {
   } | null;
   edges?: any[];
   nodesById?: Record<string, any> | undefined;
+  onSelectNode?: (nodeId: string) => void;
   onTrace?: () => void;
+}
+
+const kindIcons: Record<string, any> = {
+  file: FileCode,
+  module: Box,
+  component: Component,
+  function: FileCode2,
+  class: Layers,
+  method: Terminal,
+  type: Layers,
+  variable: Variable,
+  api_route: RouteIcon,
+  package: Package,
+  external: Package,
+};
+
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function NodeDetailsPanel({
   node,
+  nodesById = {},
+  onSelectNode,
   onTrace,
 }: NodeDetailsPanelProps) {
   const nodeId = node?.id;
-  const { data: liveNode, isLoading: nodeLoading } = useNodeDetails(nodeId);
+  const { data: liveNode, isLoading: nodeLoading, isError: nodeError } = useNodeDetails(nodeId);
   const { data: relationshipsData, isLoading: relsLoading } = useNodeRelationships(nodeId);
 
   if (!nodeId) {
@@ -38,143 +79,294 @@ export function NodeDetailsPanel({
         <EmptyState
           className="flex-1"
           icon={<MousePointerClick className="size-4" />}
-          title="No node selected"
-          description="Pick a file in the explorer or click a node in the graph to inspect its relationships."
+          title="No entity selected"
+          description="Pick a file in the explorer or click a node in the graph to inspect its AST metadata and relationships."
         />
       </div>
     );
   }
 
-  if (nodeLoading || relsLoading) {
+  if (nodeLoading && !liveNode) {
     return (
       <div className="panel-surface flex h-full flex-col items-center justify-center p-6 text-xs text-muted-foreground">
         <Loader2 className="mb-2 size-5 animate-spin text-primary" />
-        Loading node details…
+        Loading entity details…
       </div>
     );
   }
 
+  const fallbackFromGraph = nodesById[nodeId];
   const effectiveNode = liveNode || {
     id: nodeId,
-    label: node?.label || nodeId,
-    type: node?.kind || "file",
+    label: fallbackFromGraph?.label || node?.label || nodeId,
+    type: fallbackFromGraph?.kind || node?.kind || "file",
     entityType: "Entity",
     data: {
-      filePath: node?.path || "",
-      loc: node?.loc,
+      filePath: fallbackFromGraph?.path || node?.path || "",
+      loc: fallbackFromGraph?.loc || node?.loc,
     },
   };
 
   const nodeData = (effectiveNode.data || {}) as Record<string, any>;
+  const nodeType = (effectiveNode.type || "file").toLowerCase();
+  const Icon = kindIcons[nodeType] || Box;
+  const kindToken = getKindTokens(nodeType);
+
   const outgoing = relationshipsData?.outgoing || [];
   const incoming = relationshipsData?.incoming || [];
+
+  // Contained declarations (e.g. methods inside a class, or symbols inside a file)
+  const containedRels = outgoing.filter(
+    (r) => r.relationshipType.toUpperCase() === "CONTAINS",
+  );
+  const dependsOnRels = outgoing.filter(
+    (r) => r.relationshipType.toUpperCase() !== "CONTAINS",
+  );
+
+  const lineDisplay =
+    nodeData["startLine"] && nodeData["endLine"]
+      ? `L${nodeData["startLine"]}–${nodeData["endLine"]}`
+      : nodeData["startLine"]
+        ? `L${nodeData["startLine"]}`
+        : null;
+
+  const locDisplay = nodeData["loc"]
+    ? `${nodeData["loc"]} LOC`
+    : nodeData["startLine"] && nodeData["endLine"]
+      ? `${nodeData["endLine"] - nodeData["startLine"] + 1} LOC`
+      : null;
 
   return (
     <div className="panel-surface flex h-full min-h-0 flex-col overflow-hidden rounded-lg">
       <PanelHeading
-        title="Node details"
+        title="Node Inspector"
         hint={nodeData["filePath"] || effectiveNode.label}
-        action={<KindBadge kind={(effectiveNode.type as any) || "module"} />}
+        action={<KindBadge kind={nodeType} />}
       />
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-4 p-4">
-          <div className="flex min-w-0 items-start gap-2.5">
-            <FileCode2 className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div className="min-w-0">
-              <p className="truncate font-mono text-sm text-foreground">{effectiveNode.label}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {effectiveNode.entityType}: {effectiveNode.type}
-                {nodeData["startLine"] ? ` (lines ${nodeData["startLine"]}–${nodeData["endLine"]})` : ""}
-              </p>
+          {/* Header Card */}
+          <div className="rounded-lg border border-border bg-background/50 p-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded border border-border bg-surface">
+                <Icon className={`size-4 ${kindToken.text}`} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="truncate font-mono text-sm font-semibold text-foreground">
+                  {effectiveNode.label}
+                </h4>
+                <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                  {nodeData["filePath"] || "External / Package"}
+                </p>
+              </div>
             </div>
+
+            {/* API Route Callout */}
+            {nodeType === "api_route" && (
+              <div className="mt-3 flex items-center gap-2 rounded border border-purple-500/30 bg-purple-500/10 px-2.5 py-1.5 font-mono text-xs text-purple-300">
+                <Globe className="size-3.5 shrink-0" />
+                <span className="font-bold uppercase tracking-wider">{nodeData["method"] || "ROUTE"}</span>
+                <span className="truncate">{nodeData["path"] || effectiveNode.label}</span>
+              </div>
+            )}
           </div>
 
+          {/* Quick Metrics */}
           <dl className="grid grid-cols-3 gap-2 text-center">
             {[
-              { k: "LOC", v: nodeData["loc"] ? String(nodeData["loc"]) : "—" },
-              { k: "In", v: String(incoming.length) },
-              { k: "Out", v: String(outgoing.length) },
+              { k: "Lines", v: locDisplay || (lineDisplay ? lineDisplay : "—") },
+              { k: "Depends on", v: String(dependsOnRels.length) },
+              { k: "Used by", v: String(incoming.length) },
             ].map((s) => (
               <div key={s.k} className="rounded-md border border-border bg-background/40 px-2 py-2">
                 <dt className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                   {s.k}
                 </dt>
-                <dd className="mt-0.5 text-sm font-semibold tabular-nums">{s.v}</dd>
+                <dd className="mt-0.5 truncate text-xs font-semibold tabular-nums text-foreground">
+                  {s.v}
+                </dd>
               </div>
             ))}
           </dl>
 
-
-          <Tabs defaultValue="relations">
+          {/* Main Inspection Tabs */}
+          <Tabs defaultValue="details">
             <TabsList className="w-full">
-              <TabsTrigger value="relations" className="flex-1 text-xs">
-                Relations
-              </TabsTrigger>
-              <TabsTrigger value="symbols" className="flex-1 text-xs">
+              <TabsTrigger value="details" className="flex-1 text-xs">
                 Details
+              </TabsTrigger>
+              <TabsTrigger value="relations" className="flex-1 text-xs">
+                Relations ({outgoing.length + incoming.length})
               </TabsTrigger>
               <TabsTrigger value="ai" className="flex-1 text-xs">
                 AI
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="relations" className="mt-3 space-y-3">
+            {/* Details & Symbol Metadata Tab */}
+            <TabsContent value="details" className="mt-3 space-y-3">
+              {/* Source Location */}
+              <div className="rounded-md border border-border bg-background/30 p-3 space-y-2">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Source Metadata
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Kind: </span>
+                    <span className="font-mono text-foreground">{effectiveNode.type}</span>
+                  </div>
+                  {lineDisplay ? (
+                    <div>
+                      <span className="text-muted-foreground">Lines: </span>
+                      <span className="font-mono text-foreground">{lineDisplay}</span>
+                    </div>
+                  ) : null}
+                  {nodeData["isExported"] !== undefined ? (
+                    <div>
+                      <span className="text-muted-foreground">Exported: </span>
+                      <span className="font-mono text-foreground">
+                        {nodeData["isExported"] ? "Yes" : "No"}
+                      </span>
+                    </div>
+                  ) : null}
+                  {nodeData["size"] ? (
+                    <div>
+                      <span className="text-muted-foreground">Size: </span>
+                      <span className="font-mono text-foreground">{formatBytes(nodeData["size"])}</span>
+                    </div>
+                  ) : null}
+                  {nodeData["handler"] ? (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Handler: </span>
+                      <code className="font-mono text-primary text-[11px]">{nodeData["handler"]}</code>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Contained Declarations */}
+              {containedRels.length > 0 ? (
+                <div>
+                  <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Contained Symbols ({containedRels.length})
+                  </p>
+                  <ul className="space-y-1.5">
+                    {containedRels.map((rel) => {
+                      const targetEntity = nodesById[rel.targetId];
+                      const targetLabel = targetEntity?.label || rel.targetId;
+                      const targetKind = (targetEntity?.kind || "symbol").toLowerCase();
+                      const targetTokens = getKindTokens(targetKind);
+
+                      return (
+                        <li key={rel.id}>
+                          <button
+                            type="button"
+                            onClick={() => onSelectNode?.(rel.targetId)}
+                            className="group flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background/40 px-2.5 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-mono text-xs text-foreground group-hover:text-primary">
+                                {targetLabel}
+                              </span>
+                            </span>
+                            <span
+                              className={`rounded px-1.5 py-0.2 font-mono text-[9px] uppercase tracking-wider shrink-0 ${targetTokens.badge}`}
+                            >
+                              {targetTokens.label}
+                            </span>
+                            <ExternalLink className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
+            </TabsContent>
+
+            {/* Relationships Tab */}
+            <TabsContent value="relations" className="mt-3 space-y-4">
+              {/* Outbound ("Depends on") */}
               <div>
                 <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Depends on ({outgoing.length})
+                  Depends on ({dependsOnRels.length})
                 </p>
-                {outgoing.length ? (
+                {dependsOnRels.length > 0 ? (
                   <ul className="space-y-1.5">
-                    {outgoing.map((rel) => (
-                      <li
-                        key={rel.id}
-                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2"
-                      >
-                        <RelationDot relation={rel.relationshipType.toLowerCase() as any} />
-                        <span className="min-w-0">
-                          <span className="block truncate font-mono text-xs text-foreground">
-                            {rel.targetId}
-                          </span>
-                          <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                            {rel.relationshipType}
-                          </span>
-                        </span>
-                        <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
-                      </li>
-                    ))}
+                    {dependsOnRels.map((rel) => {
+                      const targetEntity = nodesById[rel.targetId];
+                      const targetLabel = targetEntity?.label || rel.targetId;
+                      const targetPath = targetEntity?.path || "";
+                      const relToken = getRelationTokens(rel.relationshipType);
+
+                      return (
+                        <li key={rel.id}>
+                          <button
+                            type="button"
+                            onClick={() => onSelectNode?.(rel.targetId)}
+                            className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                          >
+                            <RelationDot relation={rel.relationshipType} />
+                            <span className="min-w-0">
+                              <span className="block truncate font-mono text-xs text-foreground group-hover:text-primary">
+                                {targetLabel}
+                              </span>
+                              <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                                {relToken.label} {targetPath ? `· ${targetPath}` : ""}
+                              </span>
+                            </span>
+                            <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Leaf node — no outbound dependencies.</p>
+                  <p className="text-xs text-muted-foreground">No outbound dependencies recorded.</p>
                 )}
               </div>
+
+              {/* Inbound ("Used by") */}
               <div>
                 <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                   Used by ({incoming.length})
                 </p>
-                {incoming.length ? (
+                {incoming.length > 0 ? (
                   <ul className="space-y-1.5">
-                    {incoming.map((rel) => (
-                      <li
-                        key={rel.id}
-                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2"
-                      >
-                        <RelationDot relation={rel.relationshipType.toLowerCase() as any} />
-                        <span className="min-w-0">
-                          <span className="block truncate font-mono text-xs text-foreground">
-                            {rel.sourceId}
-                          </span>
-                          <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                            {rel.relationshipType}
-                          </span>
-                        </span>
-                        <ArrowDownLeft className="size-3.5 shrink-0 text-muted-foreground" />
-                      </li>
-                    ))}
+                    {incoming.map((rel) => {
+                      const sourceEntity = nodesById[rel.sourceId];
+                      const sourceLabel = sourceEntity?.label || rel.sourceId;
+                      const sourcePath = sourceEntity?.path || "";
+                      const relToken = getRelationTokens(rel.relationshipType);
+
+                      return (
+                        <li key={rel.id}>
+                          <button
+                            type="button"
+                            onClick={() => onSelectNode?.(rel.sourceId)}
+                            className="group grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                          >
+                            <RelationDot relation={rel.relationshipType} />
+                            <span className="min-w-0">
+                              <span className="block truncate font-mono text-xs text-foreground group-hover:text-primary">
+                                {sourceLabel}
+                              </span>
+                              <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                                {relToken.label} {sourcePath ? `· ${sourcePath}` : ""}
+                              </span>
+                            </span>
+                            <ArrowDownLeft className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Entry point — no inbound callers.</p>
+                  <p className="text-xs text-muted-foreground">No inbound references recorded.</p>
                 )}
               </div>
+
               {onTrace ? (
                 <Button variant="outline" size="sm" className="w-full" onClick={onTrace}>
                   Trace flow through this node
@@ -182,27 +374,7 @@ export function NodeDetailsPanel({
               ) : null}
             </TabsContent>
 
-            <TabsContent value="symbols" className="mt-3 space-y-3">
-              <div>
-                <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Source Location
-                </p>
-                <p className="font-mono text-xs text-muted-foreground">
-                  {nodeData["filePath"] || "External package"}
-                  {nodeData["startLine"] ? ` : ${nodeData["startLine"]}` : ""}
-                </p>
-              </div>
-              <div>
-                <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Entity Kind
-                </p>
-                <code className="rounded border border-border bg-background/60 px-1.5 py-0.5 font-mono text-[11px] text-primary">
-                  {effectiveNode.type}
-                </code>
-              </div>
-            </TabsContent>
-
-
+            {/* AI Explanation Tab (Preview) */}
             <TabsContent value="ai" className="mt-3">
               <AiExplanationPanel node={effectiveNode as any} embedded />
             </TabsContent>
@@ -212,4 +384,3 @@ export function NodeDetailsPanel({
     </div>
   );
 }
-
