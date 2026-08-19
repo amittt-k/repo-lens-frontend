@@ -61,7 +61,7 @@ function Overview() {
           </p>
         </div>
         <Button asChild size="sm" className="shrink-0 gap-1.5">
-          <Link to="/repo/$owner/$name/graph" params={{ owner, name }}>
+          <Link to="/repo/$owner/$name/graph" params={{ owner, name }} search={(prev) => prev}>
             <Network className="size-3.5" />
             <span className="hidden sm:inline">Open graph</span>
             <ArrowRight className="size-3.5" />
@@ -155,7 +155,13 @@ function Overview() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate({ to: "/repo/$owner/$name/graph", params: { owner, name } })}
+            onClick={() =>
+              navigate({
+                to: "/repo/$owner/$name/graph",
+                params: { owner, name },
+                search: (prev) => prev,
+              })
+            }
           >
             Inspect in graph workspace
           </Button>
