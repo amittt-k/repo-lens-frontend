@@ -146,7 +146,7 @@ function mapEdges(
     const isConnected = hasSelection && (e.source === selectedId || e.target === selectedId);
     const inTrace = isTraceActive && isEdgeInTrace(e, traceIds);
     const dimmed = isTraceActive && traceIds.length > 0 ? !inTrace : hasSelection && !isConnected;
-    const relTokens = getRelationTokens(e.relation || (e as any).relationshipType || (e as any).symbol);
+    const relTokens = getRelationTokens(e.relation || e.symbol);
 
     const animated = inTrace || isConnected;
     const stroke = inTrace

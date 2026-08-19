@@ -6,8 +6,32 @@
  * so the UI can be swapped over without component changes.
  */
 
-export type NodeKind = "module" | "component" | "function" | "external";
-export type RelationKind = "import" | "call" | "export";
+export type NodeKind =
+  | "file"
+  | "module"
+  | "component"
+  | "function"
+  | "class"
+  | "method"
+  | "type"
+  | "variable"
+  | "api_route"
+  | "package"
+  | "external";
+
+export type RelationKind =
+  | "import"
+  | "call"
+  | "export"
+  | "IMPORTS"
+  | "CONTAINS"
+  | "CALLS"
+  | "USES"
+  | "EXTENDS"
+  | "IMPLEMENTS"
+  | "HANDLES_ROUTE"
+  | "CALLS_API"
+  | (string & {});
 
 export interface RepoSummary {
   owner: string;
@@ -361,15 +385,30 @@ export const mockExplanations: Record<string, string> = {
 export const genericExplanation =
   "This node participates in the dependency graph through its imports and exported symbols. Select a relationship in the panel to see how data reaches it, or trace a flow to follow execution across files.";
 
-export const relationLabels: Record<RelationKind, string> = {
+export const relationLabels: Record<string, string> = {
   import: "Imports",
   call: "Function calls",
   export: "Re-exports",
+  IMPORTS: "Imports",
+  CONTAINS: "Contains",
+  CALLS: "Calls",
+  USES: "Uses",
+  EXTENDS: "Extends",
+  IMPLEMENTS: "Implements",
+  HANDLES_ROUTE: "Handles route",
+  CALLS_API: "Calls API",
 };
 
-export const kindLabels: Record<NodeKind, string> = {
+export const kindLabels: Record<string, string> = {
   module: "Module",
   component: "Component",
-  function: "Utility",
+  function: "Function",
+  file: "File",
+  class: "Class",
+  method: "Method",
+  type: "Type",
+  variable: "Variable",
+  api_route: "API Route",
+  package: "Package",
   external: "External",
 };

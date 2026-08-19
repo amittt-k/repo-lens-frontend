@@ -22,14 +22,28 @@ export interface TracedFlow {
   isLeaf: boolean;
 }
 
+export interface FlowNodeCustomData {
+  filePath?: string | undefined;
+  path?: string | undefined;
+  loc?: number | undefined;
+  kind?: string | undefined;
+  type?: string | undefined;
+  startLine?: number | undefined;
+  endLine?: number | undefined;
+  method?: string | undefined;
+  handler?: string | undefined;
+  routePath?: string | undefined;
+  size?: number | undefined;
+  [key: string]: unknown;
+}
+
 export interface FlowGraphNode {
   id: string;
   label: string;
   path?: string | undefined;
   kind?: string | undefined;
   type?: string | undefined;
-  data?: Record<string, any> | undefined;
-  [key: string]: any;
+  data?: FlowNodeCustomData | undefined;
 }
 
 export interface FlowGraphEdge {
@@ -38,7 +52,7 @@ export interface FlowGraphEdge {
   target: string;
   relationshipType?: string | undefined;
   relation?: string | undefined;
-  [key: string]: any;
+  data?: Record<string, unknown> | undefined;
 }
 
 export interface FlowTraceOptions {
@@ -161,7 +175,7 @@ export function traceFlowFromIndex(
   visited.add(currentId);
 
   const startKind = (startNode.kind || startNode.type || "module").toLowerCase();
-  const startPath = startNode.path || (startNode.data as any)?.filePath || "";
+  const startPath = startNode.path || startNode.data?.filePath || "";
 
   steps.push({
     nodeId: startNode.id,
@@ -201,7 +215,7 @@ export function traceFlowFromIndex(
     const nextNode = nodeMap.get(chosenEdge.target);
     const nextLabel = nextNode?.label || chosenEdge.target;
     const nextKind = (nextNode?.kind || nextNode?.type || "module").toLowerCase();
-    const nextPath = nextNode?.path || (nextNode?.data as any)?.filePath || "";
+    const nextPath = nextNode?.path || nextNode?.data?.filePath || "";
     const relUpper = (chosenEdge.relationshipType || chosenEdge.relation || "CALLS").toUpperCase();
 
     steps.push({
