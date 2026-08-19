@@ -26,8 +26,8 @@ export interface GraphCanvasProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   traceNodeIds: string[];
-  traceMode: boolean;
-  onTraceModeChange: (next: boolean) => void;
+  traceActive: boolean;
+  onTraceToggle: (next: boolean) => void;
   onOpenSearch: () => void;
   panelOpen: boolean;
   onPanelToggle: () => void;

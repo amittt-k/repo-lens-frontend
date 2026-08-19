@@ -18,10 +18,10 @@ import { allKinds, allRelations } from "@/lib/graph-tokens";
  * degrade to "nothing selected" / "everything visible" instead of throwing.
  */
 export interface WorkspaceSearch {
-  node?: string;
-  flow?: string;
-  kinds?: string;
-  relations?: string;
+  node?: string | undefined;
+  flow?: string | undefined;
+  kinds?: string | undefined;
+  relations?: string | undefined;
 }
 
 function readString(value: unknown): string | undefined {
