@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { ErrorState } from "@/components/repolens/primitives";
-import { useAnalyzeRepository } from "@/hooks/useRepositoryData";
+import { apiService } from "@/services/api.service";
 
 const searchSchema = z.object({
   owner: z.string().default("vercel"),
@@ -41,53 +41,51 @@ export function Analyzing() {
   const { owner: ownerParam, repo: repoParam, url: customUrl } = Route.useSearch();
   const navigate = useNavigate();
   const [stage, setStage] = useState(0);
-
-  const analyzeMutation = useAnalyzeRepository();
-  const hasTriggeredRef = useRef(false);
-  const hasNavigatedRef = useRef(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const targetUrl = customUrl || `https://github.com/${ownerParam}/${repoParam}`;
 
-  // 1. Dispatch analysis mutation once on mount
   useEffect(() => {
-    if (hasTriggeredRef.current) return;
-    hasTriggeredRef.current = true;
-    analyzeMutation.mutate(targetUrl);
-  }, [targetUrl]);
+    let isCancelled = false;
+    let timer: NodeJS.Timeout | null = null;
 
-  // 2. Advance stage indicator while mutation is actively in-flight
-  useEffect(() => {
-    if (!analyzeMutation.isPending) return;
-
-    const interval = setInterval(() => {
+    // Advance stages smoothly while analysis is in-flight
+    timer = setInterval(() => {
       setStage((s) => Math.min(s + 1, STAGES.length - 2));
     }, 450);
 
-    return () => clearInterval(interval);
-  }, [analyzeMutation.isPending]);
+    async function runAnalysis() {
+      try {
+        const result = await apiService.analyzeRepository(targetUrl);
+        if (isCancelled) return;
 
-  // 3. Reactively handle successful mutation completion and immediately navigate
-  useEffect(() => {
-    if (!analyzeMutation.isSuccess || !analyzeMutation.data || hasNavigatedRef.current) return;
-    hasNavigatedRef.current = true;
+        if (timer) clearInterval(timer);
+        setStage(STAGES.length);
 
-    setStage(STAGES.length);
-    const repository = analyzeMutation.data.repository;
-    const targetOwner = repository?.owner || ownerParam;
-    const targetName = repository?.name || repoParam;
-    const targetRepoId = repository?.id;
+        const repository = result.repository;
+        const targetOwner = repository?.owner || ownerParam;
+        const targetName = repository?.name || repoParam;
+        const targetRepoId = repository?.id;
 
-    void navigate({
-      to: "/repo/$owner/$name",
-      params: { owner: targetOwner, name: targetName },
-      search: { repoId: targetRepoId },
-    });
-  }, [analyzeMutation.isSuccess, analyzeMutation.data, ownerParam, repoParam, navigate]);
+        await navigate({
+          to: "/repo/$owner/$name",
+          params: { owner: targetOwner, name: targetName },
+          search: { repoId: targetRepoId },
+        });
+      } catch (err: any) {
+        if (isCancelled) return;
+        if (timer) clearInterval(timer);
+        setErrorMessage(err?.message || "Failed to analyze repository.");
+      }
+    }
 
-  // 4. Reactively derive error state from mutation failure
-  const errorMessage = analyzeMutation.isError
-    ? analyzeMutation.error?.message || "Failed to analyze repository."
-    : null;
+    void runAnalysis();
+
+    return () => {
+      isCancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [targetUrl, ownerParam, repoParam, navigate]);
 
   const pct = Math.round((Math.min(stage, STAGES.length) / STAGES.length) * 100);
 
