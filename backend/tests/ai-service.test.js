@@ -279,7 +279,7 @@ describe("AI Foundation & Service Unit Tests", () => {
 
       const result = await aiService.explainRepository(
         { repository: { fullName: "owner/test-repo" } },
-        { apiKey: "mock-key", fetchFn: mockFetch },
+        { apiKey: "mock-key", fetchFn: mockFetch, model: "gpt-4o-mini" },
       );
 
       assert.match(result.explanation, /Project Overview/);

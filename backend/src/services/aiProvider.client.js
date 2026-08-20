@@ -75,11 +75,32 @@ export async function sendCompletion(systemPrompt, userPrompt, options = {}) {
         // ignore parse error
       }
 
+      let providerMessage = "";
+      try {
+        const parsed = JSON.parse(errorBody);
+        if (parsed?.error?.message) {
+          providerMessage = parsed.error.message;
+        } else if (Array.isArray(parsed) && parsed[0]?.error?.message) {
+          providerMessage = parsed[0].error.message;
+        }
+      } catch {
+        // ignore parse error
+      }
+
       if (status === 429) {
         throw new AiServiceError(
           "AI provider rate limit exceeded. Please try again shortly.",
           "AI_RATE_LIMIT_ERROR",
           429,
+          errorBody,
+        );
+      }
+
+      if (status === 404) {
+        throw new AiServiceError(
+          providerMessage ? `AI provider error (404): ${providerMessage}` : `AI model "${model}" or endpoint was not found (404).`,
+          "AI_MODEL_NOT_FOUND",
+          404,
           errorBody,
         );
       }
