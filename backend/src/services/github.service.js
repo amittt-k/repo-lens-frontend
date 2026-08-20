@@ -194,11 +194,16 @@ export class GitHubService {
    * @param {string} name - Repository name.
    * @param {string} [branch="main"] - Target branch.
    * @param {string} filePath - Repository-relative file path.
+   * @param {object} [options={}] - Options (e.g. timeoutMs).
    * @returns {Promise<string>}
    */
-  async fetchRawFileContent(owner, name, branch = "main", filePath = "") {
+  async fetchRawFileContent(owner, name, branch = "main", filePath = "", options = {}) {
     const cleanPath = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
-    const rawUrl = `${this.rawBaseUrl}/${owner}/${name}/${encodeURIComponent(branch)}/${cleanPath}`;
+    const encodedPath = cleanPath
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    const rawUrl = `${this.rawBaseUrl}/${owner}/${name}/${encodeURIComponent(branch)}/${encodedPath}`;
 
     const headers = {
       "User-Agent": "RepoLens-Analyzer",
@@ -208,18 +213,78 @@ export class GitHubService {
       headers.Authorization = `token ${this.token}`;
     }
 
-    const res = await this.fetchFn(rawUrl, { method: "GET", headers });
-    if (!res.ok) {
-      throw new GitHubApiError(`Failed to fetch raw file "${cleanPath}" (${res.status}): ${res.statusText}`, res.status);
-    }
+    const timeoutMs = options.timeoutMs || 5000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
 
-    return await res.text();
+    try {
+      const res = await this.fetchFn(rawUrl, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new GitHubApiError(`Failed to fetch raw file "${cleanPath}" (${res.status}): ${res.statusText}`, res.status);
+      }
+
+      return await res.text();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError" || controller.signal.aborted) {
+        throw new GitHubApiError(`Timeout fetching raw file "${cleanPath}" after ${timeoutMs}ms`, 504);
+      }
+      throw err;
+    }
   }
 
   /**
-   * Fetches repository source files for static analysis.
-   * Primary approach: downloads repository tarball in 1 single HTTP request and stream-extracts supported files.
-   * Fallback approach: bounded concurrency raw file fetching.
+   * Fetches multiple source files in parallel using bounded concurrency and Promise.allSettled.
+   *
+   * @param {string} owner - Repository owner.
+   * @param {string} name - Repository name.
+   * @param {string} [branch="main"] - Target branch.
+   * @param {Array<string>} [targetPaths=[]] - File paths to fetch.
+   * @param {object} [options={}] - Concurrency and timeout options.
+   * @returns {Promise<Map<string, string>>}
+   */
+  async fetchRawFilesParallel(owner, name, branch = "main", targetPaths = [], options = {}) {
+    const fileMap = new Map();
+    const pathsToFetch = targetPaths.slice(0, options.maxRawFiles || 300);
+    const concurrency = options.concurrency || 8;
+    const perFileTimeout = options.rawFileTimeoutMs || 5000;
+
+    for (let i = 0; i < pathsToFetch.length; i += concurrency) {
+      const chunk = pathsToFetch.slice(i, i + concurrency);
+      await Promise.allSettled(
+        chunk.map(async (filePath) => {
+          try {
+            const content = await this.fetchRawFileContent(owner, name, branch, filePath, {
+              timeoutMs: perFileTimeout,
+              ...options,
+            });
+            if (typeof content === "string") {
+              fileMap.set(filePath, content);
+            }
+          } catch {
+            // Promise.allSettled guarantees one failed file never fails the batch
+          }
+        }),
+      );
+    }
+
+    return fileMap;
+  }
+
+  /**
+   * Fetches repository source files for static analysis using an intelligent strategy:
+   * 1. Sparse/non-JS repositories (<= 50 supported files): fetches supported files directly in parallel from raw CDN,
+   *    avoiding multi-minute downloads of massive multi-hundred-megabyte non-JS/TS archives (e.g. Java, Python, monorepos).
+   * 2. Large supported repositories (> 50 supported files): attempts 1 single archive tarball stream with an 8-second timeout,
+   *    and automatically falls back cleanly to bounded parallel raw fetching if tarball streaming is unavailable or slow.
    *
    * @param {string} owner - Repository owner.
    * @param {string} name - Repository name.
@@ -237,7 +302,15 @@ export class GitHubService {
       return isSupportedSourceFile(p);
     };
 
-    // Primary: Tarball archive stream extraction (1 request for entire repo snapshot)
+    const sparseThreshold = options.sparseThreshold !== undefined ? options.sparseThreshold : 50;
+
+    // Strategy 1: Sparse repository (<= 50 files) -> fetch directly in parallel via raw files
+    if (supportedPaths.length > 0 && supportedPaths.length <= sparseThreshold) {
+      return await this.fetchRawFilesParallel(owner, name, branch, supportedPaths, options);
+    }
+
+    // Strategy 2: Large supported repository (> 50 files) -> try bounded tarball streaming
+    const tarballTimeoutMs = options.tarballTimeoutMs || 8000;
     try {
       const headers = {
         Accept: "application/vnd.github.v3+json",
@@ -248,40 +321,34 @@ export class GitHubService {
       }
 
       const archiveUrl = `${this.apiBaseUrl}/repos/${owner}/${name}/tarball/${encodeURIComponent(branch)}`;
-      const res = await this.fetchFn(archiveUrl, { method: "GET", headers });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), tarballTimeoutMs);
+
+      const res = await this.fetchFn(archiveUrl, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+      });
 
       if (res.ok && res.body) {
-        const fileMap = await extractTarStream(res.body, shouldExtract, options);
+        const fileMap = await extractTarStream(res.body, shouldExtract, {
+          ...options,
+          timeoutMs: tarballTimeoutMs,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         if (fileMap && fileMap.size > 0) {
           return fileMap;
         }
+      } else {
+        clearTimeout(timeoutId);
       }
-    } catch (archiveErr) {
-      // Proceed to fallback
+    } catch {
+      // Tarball download or extraction timed out or failed -> fall back cleanly to parallel raw fetching
     }
 
-    // Fallback: Bounded-concurrency raw file fetching (max 300 files, concurrency 10)
-    const fileMap = new Map();
-    const targetPaths = (supportedPaths.length > 0 ? supportedPaths : []).slice(0, 300);
-    const CONCURRENCY = 10;
-
-    for (let i = 0; i < targetPaths.length; i += CONCURRENCY) {
-      const chunk = targetPaths.slice(i, i + CONCURRENCY);
-      await Promise.allSettled(
-        chunk.map(async (filePath) => {
-          try {
-            const content = await this.fetchRawFileContent(owner, name, branch, filePath);
-            if (typeof content === "string") {
-              fileMap.set(filePath, content);
-            }
-          } catch {
-            // Ignore single file fetch failure
-          }
-        }),
-      );
-    }
-
-    return fileMap;
+    // Fallback: Bounded-concurrency raw file fetching
+    return await this.fetchRawFilesParallel(owner, name, branch, supportedPaths, options);
   }
 }
 

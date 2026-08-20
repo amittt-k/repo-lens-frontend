@@ -15,14 +15,56 @@ export async function extractTarStream(inputStream, shouldExtractPath = () => tr
   const nodeStream = inputStream instanceof Readable ? inputStream : Readable.fromWeb(inputStream);
   const gunzip = zlib.createGunzip();
   const chunks = [];
+  const timeoutMs = options.timeoutMs || 8000;
 
   const uncompressedBuffer = await new Promise((resolve, reject) => {
+    let finished = false;
+    const timeoutId = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        try { nodeStream.destroy(); } catch {}
+        try { gunzip.destroy(); } catch {}
+        reject(new Error(`Tar stream extraction timed out after ${timeoutMs}ms`));
+      }
+    }, timeoutMs);
+
     nodeStream
       .pipe(gunzip)
       .on("data", (c) => chunks.push(c))
-      .on("end", () => resolve(Buffer.concat(chunks)))
-      .on("error", reject);
-    nodeStream.on("error", reject);
+      .on("end", () => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timeoutId);
+          resolve(Buffer.concat(chunks));
+        }
+      })
+      .on("error", (err) => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timeoutId);
+          reject(err);
+        }
+      });
+
+    nodeStream.on("error", (err) => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeoutId);
+        reject(err);
+      }
+    });
+
+    if (options.signal) {
+      options.signal.addEventListener("abort", () => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timeoutId);
+          try { nodeStream.destroy(); } catch {}
+          try { gunzip.destroy(); } catch {}
+          reject(new Error("Tar extraction aborted"));
+        }
+      });
+    }
   });
 
   return extractTarBuffer(uncompressedBuffer, shouldExtractPath, options);
