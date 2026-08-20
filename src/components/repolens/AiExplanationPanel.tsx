@@ -60,7 +60,7 @@ function SafeMarkdownProse({ content }: { content: string }) {
         return (
           <code
             key={i}
-            className="rounded bg-muted/80 px-1 py-0.5 font-mono text-[11px] text-primary"
+            className="break-all rounded bg-muted/80 px-1 py-0.5 font-mono text-[11px] text-primary"
           >
             {part.slice(1, -1)}
           </code>
@@ -82,25 +82,25 @@ function SafeMarkdownProse({ content }: { content: string }) {
 
     if (trimmed.startsWith("### ")) {
       elements.push(
-        <h4 key={i} className="mt-3.5 mb-1 font-mono text-xs font-semibold uppercase tracking-wider text-primary">
+        <h4 key={i} className="mt-3.5 mb-1 break-words font-mono text-xs font-semibold uppercase tracking-wider text-primary">
           {trimmed.slice(4)}
         </h4>,
       );
     } else if (trimmed.startsWith("## ")) {
       elements.push(
-        <h3 key={i} className="mt-4 mb-1.5 font-sans text-sm font-semibold tracking-tight text-foreground">
+        <h3 key={i} className="mt-4 mb-1.5 break-words font-sans text-sm font-semibold tracking-tight text-foreground">
           {trimmed.slice(3)}
         </h3>,
       );
     } else if (trimmed.startsWith("# ")) {
       elements.push(
-        <h2 key={i} className="mt-4 mb-2 font-sans text-base font-bold text-foreground">
+        <h2 key={i} className="mt-4 mb-2 break-words font-sans text-base font-bold text-foreground">
           {trimmed.slice(2)}
         </h2>,
       );
     } else if (trimmed.length > 0) {
       elements.push(
-        <p key={i} className="my-1.5 text-xs leading-relaxed text-foreground/90">
+        <p key={i} className="my-1.5 break-words text-xs leading-relaxed text-foreground/90">
           {formatInlineSpans(trimmed)}
         </p>,
       );
@@ -109,7 +109,7 @@ function SafeMarkdownProse({ content }: { content: string }) {
 
   flushList("final");
 
-  return <div className="space-y-1">{elements}</div>;
+  return <div className="min-w-0 space-y-1 overflow-hidden break-words">{elements}</div>;
 }
 
 export function AiExplanationPanel({

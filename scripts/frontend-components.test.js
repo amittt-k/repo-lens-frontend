@@ -316,6 +316,211 @@ describe("TEST-001: Frontend Headless Component / DOM Unit Tests", () => {
       assert.ok(container.textContent.includes("Relations"));
       assert.ok(container.textContent.includes("AI"));
     });
+
+    it("renders 3-column equal grid for metrics (LINES, DEPENDS ON, USED BY) with min-w-0 and truncation", async () => {
+      const mockNode = {
+        id: "node-metrics",
+        label: "LargeModule",
+        path: "src/large.ts",
+        kind: "module",
+      };
+
+      await act(async () => {
+        root.render(
+          withQueryClient(
+            React.createElement(NodeDetailsPanel, {
+              node: mockNode,
+              nodesById: { "node-metrics": mockNode },
+            }),
+            (client) => {
+              client.setQueryData(["node-details", "node-metrics"], {
+                id: "node-metrics",
+                label: "LargeModule",
+                type: "file",
+                data: { loc: 5400, startLine: 1, endLine: 5400 },
+              });
+              client.setQueryData(["node-relationships", "node-metrics"], {
+                incoming: new Array(42).fill({ id: "in-1", relationshipType: "IMPORTS" }),
+                outgoing: new Array(18).fill({ id: "out-1", relationshipType: "IMPORTS" }),
+              });
+            },
+          ),
+        );
+      });
+
+      const metricsContainer = container.querySelector("dl");
+      assert.ok(metricsContainer, "Metrics <dl> should be rendered");
+      assert.ok(metricsContainer.className.includes("grid-cols-3"), "Must use grid-cols-3");
+      assert.ok(metricsContainer.className.includes("min-w-0"), "Must include min-w-0");
+
+      const metricCards = container.querySelectorAll("dl > div");
+      assert.equal(metricCards.length, 3, "Must render exactly 3 metrics cards");
+
+      assert.ok(metricCards[0].textContent.includes("Lines"));
+      assert.ok(metricCards[0].textContent.includes("5400 LOC"));
+
+      assert.ok(metricCards[1].textContent.includes("Depends on"));
+      assert.ok(metricCards[1].textContent.includes("18"));
+
+      assert.ok(metricCards[2].textContent.includes("Used by"));
+      assert.ok(metricCards[2].textContent.includes("42"));
+    });
+
+    it("renders extreme long node labels and deeply nested paths with truncation without clipping", async () => {
+      const extremeLabel = "useVeryLongAndComplexRepositoryAnalyticsDataMutationHookWithNestedSelectorsAndMemoizedState";
+      const extremePath = "src/packages/subpackages/nested/deeply/very/long/path/name/that/should/truncate/cleanly/HookFile.tsx";
+
+      const mockNode = {
+        id: "node-extreme",
+        label: extremeLabel,
+        path: extremePath,
+        kind: "function",
+      };
+
+      await act(async () => {
+        root.render(
+          withQueryClient(
+            React.createElement(NodeDetailsPanel, {
+              node: mockNode,
+              nodesById: { "node-extreme": mockNode },
+            }),
+            (client) => {
+              client.setQueryData(["node-details", "node-extreme"], {
+                id: "node-extreme",
+                label: extremeLabel,
+                type: "function",
+                data: { filePath: extremePath, loc: 45 },
+              });
+              client.setQueryData(["node-relationships", "node-extreme"], {
+                incoming: [],
+                outgoing: [],
+              });
+            },
+          ),
+        );
+      });
+
+      const headerTitle = container.querySelector("h4");
+      assert.ok(headerTitle, "Header title <h4> must exist");
+      assert.ok(headerTitle.className.includes("truncate"), "Header title must have truncate class");
+      assert.equal(headerTitle.getAttribute("title"), extremeLabel, "Must have full label in title attribute");
+
+      const pathPara = container.querySelector("h4 + p");
+      assert.ok(pathPara, "Path paragraph must exist");
+      assert.ok(pathPara.className.includes("truncate"), "Path paragraph must have truncate class");
+      assert.equal(pathPara.getAttribute("title"), extremePath, "Must have full path in title attribute");
+    });
+
+    it("renders multiple node kinds (file, function, method, class, component, api_route) properly", async (t) => {
+      const kindsToTest = [
+        { kind: "file", label: "index.ts", type: "file" },
+        { kind: "function", label: "calculateTotal()", type: "function" },
+        { kind: "method", label: "render()", type: "method" },
+        { kind: "class", label: "AuthManager", type: "class" },
+        { kind: "component", label: "UserCard", type: "component" },
+        { kind: "api_route", label: "POST /api/auth/login", type: "api_route", data: { method: "POST", path: "/api/auth/login" } },
+      ];
+
+      for (const item of kindsToTest) {
+        await t.test(`renders ${item.kind}`, async () => {
+          const mockNode = {
+            id: `node-${item.kind}`,
+            label: item.label,
+            path: `src/${item.label}`,
+            kind: item.kind,
+          };
+
+          const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } },
+          });
+          queryClient.setQueryData(["node-details", `node-${item.kind}`], {
+            id: `node-${item.kind}`,
+            label: item.label,
+            type: item.type,
+            data: item.data || { loc: 50 },
+          });
+          queryClient.setQueryData(["node-relationships", `node-${item.kind}`], {
+            incoming: [],
+            outgoing: [],
+          });
+
+          await act(async () => {
+            root.render(
+              React.createElement(
+                QueryClientProvider,
+                { client: queryClient },
+                React.createElement(NodeDetailsPanel, {
+                  node: mockNode,
+                  nodesById: { [`node-${item.kind}`]: mockNode },
+                }),
+              ),
+            );
+          });
+
+          assert.ok(container.textContent.includes(item.label), `Must render label for ${item.kind}`);
+          if (item.kind === "api_route") {
+            assert.ok(container.textContent.includes("POST"), "API Route callout must render method");
+          }
+        });
+      }
+    });
+
+    it("switching sequentially between nodes updates state without leaving stale or broken layout", async () => {
+      const nodeA = { id: "node-a", label: "FirstNode", kind: "file" };
+      const nodeB = { id: "node-b", label: "SecondNode", kind: "component" };
+
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } },
+      });
+      queryClient.setQueryData(["node-details", "node-a"], {
+        id: "node-a",
+        label: "FirstNode",
+        type: "file",
+        data: { loc: 10 },
+      });
+      queryClient.setQueryData(["node-relationships", "node-a"], {
+        incoming: [],
+        outgoing: [],
+      });
+      queryClient.setQueryData(["node-details", "node-b"], {
+        id: "node-b",
+        label: "SecondNode",
+        type: "component",
+        data: { loc: 85 },
+      });
+      queryClient.setQueryData(["node-relationships", "node-b"], {
+        incoming: [],
+        outgoing: [],
+      });
+
+      function TestHarness({ activeNode }) {
+        return React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(NodeDetailsPanel, {
+            node: activeNode,
+            nodesById: { "node-a": nodeA, "node-b": nodeB },
+          }),
+        );
+      }
+
+      // Render Node A
+      await act(async () => {
+        root.render(React.createElement(TestHarness, { activeNode: nodeA }));
+      });
+
+      assert.ok(container.textContent.includes("FirstNode"));
+      assert.ok(!container.textContent.includes("SecondNode"));
+
+      // Switch to Node B within the same mounted tree
+      await act(async () => {
+        root.render(React.createElement(TestHarness, { activeNode: nodeB }));
+      });
+
+      assert.ok(!container.textContent.includes("FirstNode"), "Stale Node A should not remain");
+      assert.ok(container.textContent.includes("SecondNode"), "Node B should now be visible");
+      assert.ok(container.textContent.includes("85 LOC"), "Node B metrics should be visible");
+    });
   });
 
   describe("FlowTracePanel DOM Behavior", () => {

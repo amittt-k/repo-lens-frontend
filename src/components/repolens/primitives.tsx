@@ -44,14 +44,18 @@ export function PanelHeading({
   as?: "h2" | "h3";
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-4 py-3">
-      <div className="min-w-0">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-4 py-3 min-w-0 overflow-hidden">
+      <div className="min-w-0 overflow-hidden">
         <Heading className="truncate font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
           {title}
         </Heading>
-        {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground/70">{hint}</p> : null}
+        {hint ? (
+          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground/70" title={hint}>
+            {hint}
+          </p>
+        ) : null}
       </div>
-      {action}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }

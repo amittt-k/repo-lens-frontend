@@ -167,13 +167,15 @@ function Overview() {
               />
             </div>
 
-            <div className="grid content-start gap-4">
-              <NodeDetailsPanel
-                node={selectedId ? { id: selectedId, label: selectedId } : null}
-                nodesById={nodesById}
-                onSelectNode={(id) => setSelectedId(id)}
-                edges={[]}
-              />
+            <div className="grid content-start gap-4 min-w-0">
+              <div className="flex h-[520px] min-w-0 flex-col overflow-hidden">
+                <NodeDetailsPanel
+                  node={selectedId ? { id: selectedId, label: selectedId } : null}
+                  nodesById={nodesById}
+                  onSelectNode={(id) => setSelectedId(id)}
+                  edges={[]}
+                />
+              </div>
 
 
               <Button

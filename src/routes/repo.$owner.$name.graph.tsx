@@ -279,8 +279,8 @@ function GraphWorkspace() {
 
       {/* Right rail: node details + inspector (Desktop) */}
       {panelOpen ? (
-        <aside className="hidden shrink-0 border-border p-3 lg:flex lg:h-full lg:w-[360px] lg:overflow-hidden lg:border-l">
-          <div className="h-full w-full lg:overflow-hidden">
+        <aside className="hidden shrink-0 border-border p-3 lg:flex lg:h-full lg:w-[380px] lg:min-w-[340px] lg:max-w-[420px] lg:overflow-hidden lg:border-l">
+          <div className="flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden">
             <NodeDetailsPanel
               node={selected}
               edges={mappedEdges}
@@ -343,7 +343,7 @@ function GraphWorkspace() {
               Relationships, entity details and flow tracing.
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 p-4">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4">
             <NodeDetailsPanel
               node={selected}
               edges={mappedEdges}
