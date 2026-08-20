@@ -65,14 +65,16 @@ export class NodeService {
     });
 
     if (symbol) {
+      const symTypeOrKind = symbol.type || symbol.kind;
       return {
         id: symbol.id,
         label: symbol.name,
-        type: normalizeSymbolNodeType(symbol.kind),
+        type: normalizeSymbolNodeType(symTypeOrKind),
         entityType: "Symbol",
         data: {
           name: symbol.name,
-          kind: symbol.kind,
+          kind: symTypeOrKind || "symbol",
+          type: symTypeOrKind || "symbol",
           isExported: symbol.isExported,
           startLine: symbol.startLine,
           endLine: symbol.endLine,

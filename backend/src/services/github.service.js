@@ -1,4 +1,6 @@
 import { parseGitHubUrl, GitHubUrlError } from "../utils/githubUrl.js";
+import { isSupportedSourceFile } from "../utils/fileFilter.js";
+import { extractTarStream } from "../utils/tarExtractor.js";
 
 /**
  * Custom error for GitHub API interactions.
@@ -15,6 +17,7 @@ export class GitHubApiError extends Error {
 export class GitHubService {
   constructor(options = {}) {
     this.apiBaseUrl = options.apiBaseUrl || "https://api.github.com";
+    this.rawBaseUrl = options.rawBaseUrl || "https://raw.githubusercontent.com";
     this.fetchFn = options.fetchFn || globalThis.fetch;
     this.token = options.token || process.env.GITHUB_TOKEN || null;
   }
@@ -183,8 +186,106 @@ export class GitHubService {
     const MAX_TREE_ENTRIES = 5000;
     return tree.slice(0, MAX_TREE_ENTRIES);
   }
+
+  /**
+   * Fetches raw text content of a single source file from GitHub.
+   *
+   * @param {string} owner - Repository owner.
+   * @param {string} name - Repository name.
+   * @param {string} [branch="main"] - Target branch.
+   * @param {string} filePath - Repository-relative file path.
+   * @returns {Promise<string>}
+   */
+  async fetchRawFileContent(owner, name, branch = "main", filePath = "") {
+    const cleanPath = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
+    const rawUrl = `${this.rawBaseUrl}/${owner}/${name}/${encodeURIComponent(branch)}/${cleanPath}`;
+
+    const headers = {
+      "User-Agent": "RepoLens-Analyzer",
+    };
+
+    if (this.token) {
+      headers.Authorization = `token ${this.token}`;
+    }
+
+    const res = await this.fetchFn(rawUrl, { method: "GET", headers });
+    if (!res.ok) {
+      throw new GitHubApiError(`Failed to fetch raw file "${cleanPath}" (${res.status}): ${res.statusText}`, res.status);
+    }
+
+    return await res.text();
+  }
+
+  /**
+   * Fetches repository source files for static analysis.
+   * Primary approach: downloads repository tarball in 1 single HTTP request and stream-extracts supported files.
+   * Fallback approach: bounded concurrency raw file fetching.
+   *
+   * @param {string} owner - Repository owner.
+   * @param {string} name - Repository name.
+   * @param {string} [branch="main"] - Target branch.
+   * @param {Array<string>} [supportedPaths=[]] - Known supported file paths.
+   * @param {object} [options={}] - Options.
+   * @returns {Promise<Map<string, string>>} - Map of relative path -> source content.
+   */
+  async fetchRepositorySourceFiles(owner, name, branch = "main", supportedPaths = [], options = {}) {
+    const supportedSet = new Set(supportedPaths.map((p) => p.replace(/\\/g, "/").replace(/^\/+/, "")));
+    const shouldExtract = (p) => {
+      if (supportedSet.size > 0) {
+        return supportedSet.has(p);
+      }
+      return isSupportedSourceFile(p);
+    };
+
+    // Primary: Tarball archive stream extraction (1 request for entire repo snapshot)
+    try {
+      const headers = {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "RepoLens-Analyzer",
+      };
+      if (this.token) {
+        headers.Authorization = `token ${this.token}`;
+      }
+
+      const archiveUrl = `${this.apiBaseUrl}/repos/${owner}/${name}/tarball/${encodeURIComponent(branch)}`;
+      const res = await this.fetchFn(archiveUrl, { method: "GET", headers });
+
+      if (res.ok && res.body) {
+        const fileMap = await extractTarStream(res.body, shouldExtract, options);
+        if (fileMap && fileMap.size > 0) {
+          return fileMap;
+        }
+      }
+    } catch (archiveErr) {
+      // Proceed to fallback
+    }
+
+    // Fallback: Bounded-concurrency raw file fetching (max 300 files, concurrency 10)
+    const fileMap = new Map();
+    const targetPaths = (supportedPaths.length > 0 ? supportedPaths : []).slice(0, 300);
+    const CONCURRENCY = 10;
+
+    for (let i = 0; i < targetPaths.length; i += CONCURRENCY) {
+      const chunk = targetPaths.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        chunk.map(async (filePath) => {
+          try {
+            const content = await this.fetchRawFileContent(owner, name, branch, filePath);
+            if (typeof content === "string") {
+              fileMap.set(filePath, content);
+            }
+          } catch {
+            // Ignore single file fetch failure
+          }
+        }),
+      );
+    }
+
+    return fileMap;
+  }
 }
 
 export const githubService = new GitHubService();
 export default githubService;
+
 

@@ -146,11 +146,17 @@ export class RelationshipService {
       metadata: rel.metadata || null,
     }));
 
-    const result = await this.db.relationship.createMany({
-      data: records,
-    });
+    const CHUNK_SIZE = 1000;
+    let totalCount = 0;
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      const result = await this.db.relationship.createMany({
+        data: chunk,
+      });
+      totalCount += result.count;
+    }
 
-    return { count: result.count };
+    return { count: totalCount };
   }
 }
 

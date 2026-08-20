@@ -6,13 +6,24 @@
  */
 
 /**
- * Maps a symbol kind to a normalized node type.
- * @param {string} kind
+ * Normalizes a path string to forward slashes without leading or trailing slashes.
+ *
+ * @param {string} p - Path string.
  * @returns {string}
  */
-export function normalizeSymbolNodeType(kind) {
-  if (!kind) return "symbol";
-  const lower = kind.toLowerCase();
+export function normalizePath(p) {
+  if (!p || typeof p !== "string") return "";
+  return p.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").replace(/\/+/g, "/");
+}
+
+/**
+ * Maps a symbol kind or type to a normalized node type.
+ * @param {string} kindOrType
+ * @returns {string}
+ */
+export function normalizeSymbolNodeType(kindOrType) {
+  if (!kindOrType) return "symbol";
+  const lower = String(kindOrType).toLowerCase();
   if (lower === "function") return "function";
   if (lower === "class") return "class";
   if (lower === "method") return "method";
@@ -45,12 +56,17 @@ export function buildGraph({
   const nodeMap = new Map();
   const fileLookupById = new Map();
   const fileLookupByPath = new Map();
+  const symbolLookupByCompositeKey = new Map();
+  const routeLookupByIdOrKey = new Map();
 
   // 1. Index files and create File nodes
   for (const f of files) {
     if (!f || !f.id) continue;
     fileLookupById.set(f.id, f);
-    if (f.path) fileLookupByPath.set(f.path, f);
+    if (f.path) {
+      fileLookupByPath.set(f.path, f);
+      fileLookupByPath.set(normalizePath(f.path), f);
+    }
 
     const fileNode = {
       id: f.id,
@@ -72,7 +88,9 @@ export function buildGraph({
   for (const s of symbols) {
     if (!s || !s.id) continue;
     const parentFile = fileLookupById.get(s.fileId);
-    const nodeType = normalizeSymbolNodeType(s.kind);
+    const parentPath = parentFile ? parentFile.path : "";
+    const symTypeOrKind = s.type || s.kind;
+    const nodeType = normalizeSymbolNodeType(symTypeOrKind);
 
     const symbolNode = {
       id: s.id,
@@ -80,9 +98,10 @@ export function buildGraph({
       type: nodeType,
       data: {
         name: s.name,
-        kind: s.kind,
+        kind: symTypeOrKind || "symbol",
+        type: symTypeOrKind || "symbol",
         fileId: s.fileId,
-        filePath: parentFile ? parentFile.path : "",
+        filePath: parentPath,
         isExported: s.isExported ?? false,
         startLine: s.startLine || 1,
         endLine: s.endLine || 1,
@@ -90,6 +109,30 @@ export function buildGraph({
       },
     };
     nodeMap.set(symbolNode.id, symbolNode);
+
+    // Build secondary composite lookup indices for cross-stage relationship matching
+    if (s.name) {
+      const typeUpper = (symTypeOrKind || "").toUpperCase();
+
+      if (parentPath) {
+        const normParent = normalizePath(parentPath);
+        if (typeUpper) {
+          symbolLookupByCompositeKey.set(`${normParent}::${s.name}::${typeUpper}`, symbolNode);
+        }
+        if (!symbolLookupByCompositeKey.has(`${normParent}::${s.name}`)) {
+          symbolLookupByCompositeKey.set(`${normParent}::${s.name}`, symbolNode);
+        }
+      }
+
+      if (s.fileId) {
+        if (typeUpper) {
+          symbolLookupByCompositeKey.set(`${s.fileId}::${s.name}::${typeUpper}`, symbolNode);
+        }
+        if (!symbolLookupByCompositeKey.has(`${s.fileId}::${s.name}`)) {
+          symbolLookupByCompositeKey.set(`${s.fileId}::${s.name}`, symbolNode);
+        }
+      }
+    }
   }
 
   // 3. Index API routes and create ApiRoute nodes
@@ -110,6 +153,10 @@ export function buildGraph({
       },
     };
     nodeMap.set(routeNode.id, routeNode);
+    routeLookupByIdOrKey.set(r.id, routeNode);
+    if (r.method && r.path) {
+      routeLookupByIdOrKey.set(`${r.method.toUpperCase()} ${r.path}`, routeNode);
+    }
   }
 
   // 4. Process relationships and build deterministic edges
@@ -131,15 +178,33 @@ export function buildGraph({
     let sourceNode = nodeMap.get(rel.sourceId);
     let targetNode = nodeMap.get(rel.targetId);
 
-    // Check if sourceId or targetId is a file path instead of UUID
-    if (!sourceNode && fileLookupByPath.has(rel.sourceId)) {
-      sourceNode = nodeMap.get(fileLookupByPath.get(rel.sourceId).id);
+    // Fallback 1: File path lookup for file nodes
+    if (!sourceNode) {
+      const matchedFile = fileLookupByPath.get(rel.sourceId) || fileLookupByPath.get(normalizePath(rel.sourceId));
+      if (matchedFile) sourceNode = nodeMap.get(matchedFile.id);
     }
-    if (!targetNode && fileLookupByPath.has(rel.targetId)) {
-      targetNode = nodeMap.get(fileLookupByPath.get(rel.targetId).id);
+    if (!targetNode) {
+      const matchedFile = fileLookupByPath.get(rel.targetId) || fileLookupByPath.get(normalizePath(rel.targetId));
+      if (matchedFile) targetNode = nodeMap.get(matchedFile.id);
     }
 
-    // External package dependency node generation
+    // Fallback 2: Composite key lookup for symbol nodes
+    if (!sourceNode && symbolLookupByCompositeKey.has(rel.sourceId)) {
+      sourceNode = symbolLookupByCompositeKey.get(rel.sourceId);
+    }
+    if (!targetNode && symbolLookupByCompositeKey.has(rel.targetId)) {
+      targetNode = symbolLookupByCompositeKey.get(rel.targetId);
+    }
+
+    // Fallback 3: API route lookup
+    if (!sourceNode && routeLookupByIdOrKey.has(rel.sourceId)) {
+      sourceNode = routeLookupByIdOrKey.get(rel.sourceId);
+    }
+    if (!targetNode && routeLookupByIdOrKey.has(rel.targetId)) {
+      targetNode = routeLookupByIdOrKey.get(rel.targetId);
+    }
+
+    // Fallback 4: External package dependency node generation
     if (!targetNode && (rel.targetId.startsWith("package:") || rel.metadata?.isExternal || rel.metadata?.packageName)) {
       const pkgName = rel.metadata?.packageName || rel.targetId.replace(/^package:/, "");
       const pkgNodeId = `package:${pkgName}`;
@@ -238,3 +303,4 @@ export function buildGraph({
     stats,
   };
 }
+

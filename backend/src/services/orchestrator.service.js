@@ -4,6 +4,7 @@ import { AstService, astService as defaultAstService } from "./ast.service.js";
 import { DependencyService, dependencyService as defaultDependencyService } from "./dependency.service.js";
 import { RelationshipService, relationshipService as defaultRelationshipService } from "./relationship.service.js";
 import { ApiRouteService, apiRouteService as defaultApiRouteService } from "./apiRoute.service.js";
+import { githubService as defaultGithubService } from "./github.service.js";
 import { createFileLookupMap, buildRepositoryDependencyGraph } from "../analyzers/javascript/dependencyResolver.js";
 import { analyzeSymbolRelationships } from "../analyzers/javascript/symbolRelationshipAnalyzer.js";
 import { analyzeApiRoutes } from "../analyzers/javascript/apiRouteAnalyzer.js";
@@ -23,6 +24,7 @@ export class OrchestratorService {
     this.dependencyService = options.dependencyService || (options.prisma ? new DependencyService({ prisma: this.db }) : defaultDependencyService);
     this.relationshipService = options.relationshipService || (options.prisma ? new RelationshipService({ prisma: this.db }) : defaultRelationshipService);
     this.apiRouteService = options.apiRouteService || (options.prisma ? new ApiRouteService({ prisma: this.db }) : defaultApiRouteService);
+    this.githubService = options.githubService || defaultGithubService;
   }
 
   /**
@@ -76,7 +78,29 @@ export class OrchestratorService {
 
       const fileMap = createFileLookupMap(files);
       const supportedFiles = files.filter((f) => isSupportedSourceFile(f.path));
-      const fileContents = options.fileContents || {};
+      let fileContents = options.fileContents || {};
+
+      // If file contents were not provided in options (production flow), fetch from GitHub
+      if ((!options.fileContents || Object.keys(options.fileContents).length === 0) && supportedFiles.length > 0) {
+        try {
+          const supportedPaths = supportedFiles.map((f) => f.path);
+          const fetchedMap = await this.githubService.fetchRepositorySourceFiles(
+            repository.owner,
+            repository.name,
+            repository.defaultBranch || "main",
+            supportedPaths,
+            options,
+          );
+
+          if (fetchedMap instanceof Map) {
+            fileContents = Object.fromEntries(fetchedMap.entries());
+          } else if (fetchedMap && typeof fetchedMap === "object") {
+            fileContents = fetchedMap;
+          }
+        } catch {
+          // Gracefully continue with available content if network fetch fails
+        }
+      }
 
       // 4. Stage 2: AST Analysis & Symbol Extraction
       const fileAnalyses = [];

@@ -128,15 +128,17 @@ export class DependencyService {
       }
     }
 
-    if (relationshipsToCreate.length === 0) {
-      return { count: 0 };
+    const CHUNK_SIZE = 1000;
+    let totalCount = 0;
+    for (let i = 0; i < relationshipsToCreate.length; i += CHUNK_SIZE) {
+      const chunk = relationshipsToCreate.slice(i, i + CHUNK_SIZE);
+      const result = await this.db.relationship.createMany({
+        data: chunk,
+      });
+      totalCount += result.count;
     }
 
-    const result = await this.db.relationship.createMany({
-      data: relationshipsToCreate,
-    });
-
-    return { count: result.count };
+    return { count: totalCount };
   }
 }
 

@@ -152,16 +152,22 @@ export class AstService {
     const records = allSymbols.map((s) => ({
       fileId: s.fileId,
       name: s.name,
-      type: s.type,
+      type: s.type || s.kind || "symbol",
       startLine: s.startLine ?? 1,
       endLine: s.endLine ?? 1,
     }));
 
-    const result = await this.db.symbol.createMany({
-      data: records,
-    });
+    const CHUNK_SIZE = 1000;
+    let totalCount = 0;
+    for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+      const chunk = records.slice(i, i + CHUNK_SIZE);
+      const result = await this.db.symbol.createMany({
+        data: chunk,
+      });
+      totalCount += result.count;
+    }
 
-    return { count: result.count };
+    return { count: totalCount };
   }
 }
 
