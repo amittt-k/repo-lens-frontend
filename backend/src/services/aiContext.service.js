@@ -50,13 +50,25 @@ export class AiContextService {
     const routes = await db.apiRoute.findMany({
       where: { repositoryId },
       orderBy: [{ path: "asc" }, { method: "asc" }],
+      include: {
+        file: {
+          select: { path: true },
+        },
+      },
     });
 
     // 5. Retrieve key symbols
     const symbols = await db.symbol.findMany({
       where: { file: { repositoryId } },
       take: 50,
-      select: { id: true, name: true, kind: true, filePath: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        file: {
+          select: { path: true },
+        },
+      },
     });
 
     // 6. Retrieve relationship count
@@ -82,12 +94,13 @@ export class AiContextService {
         method: r.method,
         path: r.path,
         handler: r.handler,
-        filePath: r.filePath,
+        filePath: r.file ? r.file.path : (r.filePath || ""),
       })),
       symbols: symbols.map((s) => ({
         name: s.name,
-        kind: s.kind,
-        filePath: s.filePath,
+        kind: s.type || s.kind || "symbol",
+        type: s.type || s.kind || "symbol",
+        filePath: s.file ? s.file.path : (s.filePath || ""),
       })),
       totalRelationships: relationshipsCount,
       metrics: latestAnalysis?.metadata || {},
@@ -114,7 +127,7 @@ export class AiContextService {
     if (node.entityType === "File") {
       containedSymbols = await db.symbol.findMany({
         where: { fileId: node.id },
-        select: { id: true, name: true, kind: true },
+        select: { id: true, name: true, type: true },
         take: 30,
       });
     } else if (node.type === "class") {
@@ -123,7 +136,7 @@ export class AiContextService {
       if (containedRels.length > 0) {
         containedSymbols = await db.symbol.findMany({
           where: { id: { in: containedRels.map((r) => r.targetId) } },
-          select: { id: true, name: true, kind: true },
+          select: { id: true, name: true, type: true },
           take: 30,
         });
       }
@@ -145,7 +158,8 @@ export class AiContextService {
           : undefined),
       containedSymbols: containedSymbols.map((s) => ({
         name: s.name,
-        kind: s.kind,
+        kind: s.type || s.kind || "symbol",
+        type: s.type || s.kind || "symbol",
       })),
       dependsOn: outgoing.map((r) => ({
         relationshipType: r.relationshipType,

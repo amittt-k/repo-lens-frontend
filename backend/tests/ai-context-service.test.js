@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { AiContextService } from "../src/services/aiContext.service.js";
 
 describe("AiContextService Unit Tests (QUALITY-002)", () => {
-  it("assembles structured repository context from database", async () => {
+  it("assembles structured repository context from database using valid Prisma Symbol.type field", async () => {
+    let capturedSymbolQuery = null;
+    let capturedApiRouteQuery = null;
+
     const mockPrisma = {
       repository: {
         findUnique: async ({ where }) => {
@@ -33,14 +36,21 @@ describe("AiContextService Unit Tests (QUALITY-002)", () => {
         ],
       },
       apiRoute: {
-        findMany: async () => [
-          { method: "GET", path: "/api/repos", handler: "getRepos", filePath: "src/routes.ts" },
-        ],
+        findMany: async (args) => {
+          capturedApiRouteQuery = args;
+          return [
+            { method: "GET", path: "/api/repos", handler: "getRepos", file: { path: "src/routes.ts" } },
+          ];
+        },
       },
       symbol: {
-        findMany: async () => [
-          { id: "s1", name: "getRepos", kind: "FUNCTION", filePath: "src/routes.ts" },
-        ],
+        findMany: async (args) => {
+          capturedSymbolQuery = args;
+          // Return database records containing Prisma `type` and `file` relation
+          return [
+            { id: "s1", name: "getRepos", type: "FUNCTION", file: { path: "src/routes.ts" } },
+          ];
+        },
       },
       relationship: {
         count: async () => 15,
@@ -55,7 +65,22 @@ describe("AiContextService Unit Tests (QUALITY-002)", () => {
     assert.equal(context.repository.owner, "amittt-k");
     assert.equal(context.fileCount, 2);
     assert.equal(context.apiRoutes.length, 1);
+    assert.equal(context.apiRoutes[0].filePath, "src/routes.ts");
+
+    // Verify Symbol query uses `type` and NOT `kind` or `filePath` in select
+    assert.ok(capturedSymbolQuery);
+    assert.equal(capturedSymbolQuery.select.type, true);
+    assert.equal(capturedSymbolQuery.select.kind, undefined, "Must NOT select unknown field 'kind' on Symbol");
+    assert.equal(capturedSymbolQuery.select.filePath, undefined, "Must NOT select unknown field 'filePath' on Symbol");
+    assert.ok(capturedSymbolQuery.select.file, "Must select file relation for path");
+
+    // Verify mapped symbols output contains semantic kind, type, and filePath
     assert.equal(context.symbols.length, 1);
+    assert.equal(context.symbols[0].name, "getRepos");
+    assert.equal(context.symbols[0].kind, "FUNCTION");
+    assert.equal(context.symbols[0].type, "FUNCTION");
+    assert.equal(context.symbols[0].filePath, "src/routes.ts");
+
     assert.equal(context.totalRelationships, 15);
     assert.equal(context.analysisId, "analysis-1");
   });
@@ -72,7 +97,9 @@ describe("AiContextService Unit Tests (QUALITY-002)", () => {
     assert.equal(context, null);
   });
 
-  it("assembles structured node entity context including relationships and symbols", async () => {
+  it("assembles structured node entity context for Class nodes using valid Symbol.type field", async () => {
+    let capturedSymbolQuery = null;
+
     const mockNodeService = {
       getNodeRelationships: async (nodeId) => ({
         node: {
@@ -93,9 +120,12 @@ describe("AiContextService Unit Tests (QUALITY-002)", () => {
 
     const mockPrisma = {
       symbol: {
-        findMany: async () => [
-          { id: "sym-login", name: "login", kind: "METHOD" },
-        ],
+        findMany: async (args) => {
+          capturedSymbolQuery = args;
+          return [
+            { id: "sym-login", name: "login", type: "METHOD" },
+          ];
+        },
       },
     };
 
@@ -109,10 +139,67 @@ describe("AiContextService Unit Tests (QUALITY-002)", () => {
     assert.equal(context.id, "node-auth");
     assert.equal(context.label, "AuthService");
     assert.equal(context.kind, "class");
+
+    // Verify Symbol query uses `type` and NOT `kind`
+    assert.ok(capturedSymbolQuery);
+    assert.equal(capturedSymbolQuery.select.type, true);
+    assert.equal(capturedSymbolQuery.select.kind, undefined, "Must NOT select unknown field 'kind' on Symbol");
+
     assert.equal(context.containedSymbols.length, 1);
     assert.equal(context.containedSymbols[0].name, "login");
+    assert.equal(context.containedSymbols[0].kind, "METHOD");
+    assert.equal(context.containedSymbols[0].type, "METHOD");
     assert.equal(context.dependsOn.length, 2);
     assert.equal(context.usedBy.length, 1);
+  });
+
+  it("assembles structured node entity context for File nodes using valid Symbol.type field", async () => {
+    let capturedSymbolQuery = null;
+
+    const mockNodeService = {
+      getNodeRelationships: async (nodeId) => ({
+        node: {
+          id: nodeId,
+          label: "app.ts",
+          type: "file",
+          entityType: "File",
+          data: { name: "app.ts", filePath: "src/app.ts", loc: 250 },
+        },
+        outgoing: [],
+        incoming: [],
+      }),
+    };
+
+    const mockPrisma = {
+      symbol: {
+        findMany: async (args) => {
+          capturedSymbolQuery = args;
+          return [
+            { id: "sym-init", name: "initializeApp", type: "FUNCTION" },
+            { id: "sym-router", name: "apiRouter", type: "VARIABLE" },
+          ];
+        },
+      },
+    };
+
+    const service = new AiContextService({
+      prisma: mockPrisma,
+      nodeService: mockNodeService,
+    });
+
+    const context = await service.assembleNodeContext("file-app");
+
+    assert.equal(context.id, "file-app");
+    assert.equal(context.label, "app.ts");
+    assert.ok(capturedSymbolQuery);
+    assert.equal(capturedSymbolQuery.select.type, true);
+    assert.equal(capturedSymbolQuery.select.kind, undefined, "Must NOT select unknown field 'kind' on Symbol");
+
+    assert.equal(context.containedSymbols.length, 2);
+    assert.equal(context.containedSymbols[0].name, "initializeApp");
+    assert.equal(context.containedSymbols[0].kind, "FUNCTION");
+    assert.equal(context.containedSymbols[1].name, "apiRouter");
+    assert.equal(context.containedSymbols[1].kind, "VARIABLE");
   });
 
   it("normalizes structured flow trace payload into bounded AI facts", () => {
