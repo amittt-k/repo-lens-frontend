@@ -11,6 +11,7 @@ const dom = new JSDOM("<!DOCTYPE html><html><body><div id=\"root\"></div></body>
 });
 
 globalThis.window = dom.window;
+globalThis.self = dom.window;
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.HTMLButtonElement = dom.window.HTMLButtonElement;
@@ -35,11 +36,18 @@ try {
   // ignore if already defined
 }
 
-// 2. Import React Query & components to test
 const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+const {
+  createRouter,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  RouterProvider,
+} = await import("@tanstack/react-router");
 const { AiExplanationPanel } = await import("../src/components/repolens/AiExplanationPanel.tsx");
 const { NodeDetailsPanel } = await import("../src/components/repolens/NodeDetailsPanel.tsx");
 const { FlowTracePanel } = await import("../src/components/repolens/FlowTracePanel.tsx");
+const { Analyzing, Route: AnalyzingRoute } = await import("../src/routes/analyzing.tsx");
 const apiService = (await import("../src/services/api.service.ts")).default;
 
 function withQueryClient(ui, setupFn) {
@@ -371,6 +379,261 @@ describe("TEST-001: Frontend Headless Component / DOM Unit Tests", () => {
       });
 
       assert.equal(changedFlowId, null);
+    });
+  });
+
+  describe("Analyzing Route Lifecycle & Navigation Tests", () => {
+    async function renderAnalyzingInRouter(options = {}) {
+      const {
+        initialUrl = "/analyzing?owner=facebook&repo=react",
+        queryClient = new QueryClient({
+          defaultOptions: {
+            queries: { retry: false, gcTime: 0 },
+            mutations: { retry: false, gcTime: 0 },
+          },
+        }),
+        onNavigate,
+        search = { owner: "facebook", repo: "react", url: "https://github.com/facebook/react" },
+      } = options;
+
+      AnalyzingRoute.useSearch = () => search;
+
+      const testRoot = createRootRoute();
+      const testAnalyzingRoute = createRoute({
+        getParentRoute: () => testRoot,
+        path: "/analyzing",
+        validateSearch: (s) => s,
+        component: Analyzing,
+      });
+      const testRepoRoute = createRoute({
+        getParentRoute: () => testRoot,
+        path: "/repo/$owner/$name",
+        component: () => {
+          return React.createElement("div", { id: "repo-view" }, "Repository Overview");
+        },
+      });
+
+      const testTree = testRoot.addChildren([testAnalyzingRoute, testRepoRoute]);
+      const history = createMemoryHistory({ initialEntries: [initialUrl] });
+      const testRouter = createRouter({
+        routeTree: testTree,
+        history,
+      });
+
+      await testRouter.load();
+
+      if (onNavigate) {
+        testRouter.subscribe("onResolved", (event) => {
+          onNavigate(event.toLocation);
+        });
+      }
+
+      return {
+        ui: React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(RouterProvider, { router: testRouter }),
+        ),
+        router: testRouter,
+        queryClient,
+        history,
+      };
+    }
+
+    it("1. Analysis starts once on mount", async () => {
+      let callCount = 0;
+      let requestedUrl = null;
+      apiService.analyzeRepository = async (url) => {
+        callCount++;
+        requestedUrl = url;
+        return new Promise(() => {}); // Keep pending
+      };
+
+      const { ui } = await renderAnalyzingInRouter();
+      await act(async () => {
+        root.render(ui);
+      });
+
+      assert.equal(callCount, 1);
+      assert.equal(requestedUrl, "https://github.com/facebook/react");
+      assert.ok(container.textContent.includes("Validating & fetching repository"));
+    });
+
+    it("2. Successful mutation causes navigation to repository overview", async () => {
+      let navigatedLocation = null;
+      apiService.analyzeRepository = async () => ({
+        success: true,
+        repository: { id: "repo-uuid-101", owner: "facebook", name: "react" },
+        analysis: { id: "analysis-1", status: "COMPLETED" },
+      });
+
+      const { ui, router } = await renderAnalyzingInRouter({
+        onNavigate: (loc) => {
+          navigatedLocation = loc;
+        },
+      });
+
+      await act(async () => {
+        root.render(ui);
+      });
+
+      // Wait for mutation resolution and 400ms navigation timer
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 600));
+      });
+
+      assert.ok(router.state.location.pathname.startsWith("/repo/facebook/react"));
+      assert.equal(router.state.location.search.repoId, "repo-uuid-101");
+    });
+
+    it("3. Navigation uses the repository ID returned by the backend", async () => {
+      apiService.analyzeRepository = async () => ({
+        success: true,
+        repository: { id: "custom-persisted-id-888", owner: "facebook", name: "react" },
+        analysis: { id: "a-888", status: "COMPLETED" },
+      });
+
+      const { ui, router } = await renderAnalyzingInRouter();
+
+      await act(async () => {
+        root.render(ui);
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 600));
+      });
+
+      assert.equal(router.state.location.search.repoId, "custom-persisted-id-888");
+    });
+
+    it("4. Error mutation displays the error state UI without navigating", async () => {
+      apiService.analyzeRepository = async () => {
+        throw new Error("Repository 'facebook/react' not found on GitHub.");
+      };
+
+      const { ui, router } = await renderAnalyzingInRouter();
+
+      await act(async () => {
+        root.render(ui);
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 100));
+      });
+
+      assert.equal(router.state.location.pathname, "/analyzing");
+      assert.ok(container.textContent.includes("Analysis could not complete"));
+      assert.ok(container.textContent.includes("Repository 'facebook/react' not found on GitHub."));
+      assert.ok(container.textContent.includes("Back to start"));
+    });
+
+    it("5. A long-running mutation still navigates automatically after success", async () => {
+      apiService.analyzeRepository = async () => {
+        await new Promise((r) => setTimeout(r, 200));
+        return {
+          success: true,
+          repository: { id: "long-running-id-456", owner: "facebook", name: "react" },
+          analysis: { id: "a-long", status: "COMPLETED" },
+        };
+      };
+
+      const { ui, router } = await renderAnalyzingInRouter();
+
+      await act(async () => {
+        root.render(ui);
+      });
+
+      // Still in analyzing state during long running request
+      assert.equal(router.state.location.pathname, "/analyzing");
+
+      // Wait for delayed resolution and navigation
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 800));
+      });
+
+      assert.ok(router.state.location.pathname.startsWith("/repo/facebook/react"));
+      assert.equal(router.state.location.search.repoId, "long-running-id-456");
+    });
+
+    it("6. React remount / StrictMode does not leave the UI permanently stuck", async () => {
+      let resolvePromise;
+      const pendingPromise = new Promise((resolve) => {
+        resolvePromise = resolve;
+      });
+
+      let callCount = 0;
+      apiService.analyzeRepository = async () => {
+        callCount++;
+        return pendingPromise;
+      };
+
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, gcTime: 0 },
+          mutations: { retry: false, gcTime: 0 },
+        },
+      });
+
+      const { ui, router } = await renderAnalyzingInRouter({ queryClient });
+
+      // First mount
+      await act(async () => {
+        root.render(ui);
+      });
+
+      // Unmount (simulating StrictMode unmount)
+      await act(async () => {
+        root.unmount();
+      });
+
+      // Re-create root and remount (simulating StrictMode remount)
+      root = ReactDOMClient.createRoot(container);
+      await act(async () => {
+        root.render(ui);
+      });
+
+      // Backend finishes
+      await act(async () => {
+        resolvePromise({
+          success: true,
+          repository: { id: "strict-mode-id-777", owner: "facebook", name: "react" },
+          analysis: { id: "a-strict", status: "COMPLETED" },
+        });
+      });
+
+      // Wait for navigation timer
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 600));
+      });
+
+      assert.ok(router.state.location.pathname.startsWith("/repo/facebook/react"));
+      assert.equal(router.state.location.search.repoId, "strict-mode-id-777");
+    });
+
+    it("7. No browser refresh is required after successful analysis", async () => {
+      let analyzed = false;
+      apiService.analyzeRepository = async () => {
+        analyzed = true;
+        return {
+          success: true,
+          repository: { id: "no-refresh-id-123", owner: "facebook", name: "react" },
+          analysis: { id: "a-123", status: "COMPLETED" },
+        };
+      };
+
+      const { ui, router } = await renderAnalyzingInRouter();
+
+      await act(async () => {
+        root.render(ui);
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 600));
+      });
+
+      assert.equal(analyzed, true);
+      assert.ok(router.state.location.pathname.startsWith("/repo/facebook/react"));
+      assert.equal(router.state.location.search.repoId, "no-refresh-id-123");
     });
   });
 });

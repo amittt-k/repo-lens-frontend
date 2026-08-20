@@ -37,47 +37,55 @@ const STAGES = [
   "Building normalized graph",
 ];
 
-function Analyzing() {
+export function Analyzing() {
   const { owner, repo, url: customUrl } = Route.useSearch();
   const navigate = useNavigate();
   const [stage, setStage] = useState(0);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const analyzeMutation = useAnalyzeRepository();
   const hasTriggeredRef = useRef(false);
 
   const targetUrl = customUrl || `https://github.com/${owner}/${repo}`;
 
+  // 1. Dispatch analysis mutation once on mount
   useEffect(() => {
     if (hasTriggeredRef.current) return;
     hasTriggeredRef.current = true;
+    analyzeMutation.mutate(targetUrl);
+  }, [targetUrl]);
 
-    // Advance stage indicator every 400ms while request is in-flight
+  // 2. Advance stage indicator while mutation is actively in-flight
+  useEffect(() => {
+    if (!analyzeMutation.isPending) return;
+
     const interval = setInterval(() => {
       setStage((s) => Math.min(s + 1, STAGES.length - 2));
     }, 450);
 
-    analyzeMutation.mutate(targetUrl, {
-      onSuccess: (data) => {
-        clearInterval(interval);
-        setStage(STAGES.length);
-        const repoId = data.repository.id;
-        setTimeout(() => {
-          navigate({
-            to: "/repo/$owner/$name",
-            params: { owner, name: repo },
-            search: { repoId },
-          });
-        }, 500);
-      },
-      onError: (err: any) => {
-        clearInterval(interval);
-        setErrorMessage(err.message || "Failed to analyze repository.");
-      },
-    });
-
     return () => clearInterval(interval);
-  }, [targetUrl, owner, repo, navigate]);
+  }, [analyzeMutation.isPending]);
+
+  // 3. Reactively handle successful mutation completion and trigger navigation
+  useEffect(() => {
+    if (!analyzeMutation.isSuccess || !analyzeMutation.data) return;
+
+    setStage(STAGES.length);
+    const repoId = analyzeMutation.data.repository.id;
+    const timeout = setTimeout(() => {
+      navigate({
+        to: "/repo/$owner/$name",
+        params: { owner, name: repo },
+        search: { repoId },
+      });
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [analyzeMutation.isSuccess, analyzeMutation.data, owner, repo, navigate]);
+
+  // 4. Reactively derive error state from mutation failure
+  const errorMessage = analyzeMutation.isError
+    ? analyzeMutation.error?.message || "Failed to analyze repository."
+    : null;
 
   const pct = Math.round((Math.min(stage, STAGES.length) / STAGES.length) * 100);
 
