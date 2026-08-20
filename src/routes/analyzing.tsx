@@ -38,14 +38,15 @@ const STAGES = [
 ];
 
 export function Analyzing() {
-  const { owner, repo, url: customUrl } = Route.useSearch();
+  const { owner: ownerParam, repo: repoParam, url: customUrl } = Route.useSearch();
   const navigate = useNavigate();
   const [stage, setStage] = useState(0);
 
   const analyzeMutation = useAnalyzeRepository();
   const hasTriggeredRef = useRef(false);
+  const hasNavigatedRef = useRef(false);
 
-  const targetUrl = customUrl || `https://github.com/${owner}/${repo}`;
+  const targetUrl = customUrl || `https://github.com/${ownerParam}/${repoParam}`;
 
   // 1. Dispatch analysis mutation once on mount
   useEffect(() => {
@@ -65,22 +66,23 @@ export function Analyzing() {
     return () => clearInterval(interval);
   }, [analyzeMutation.isPending]);
 
-  // 3. Reactively handle successful mutation completion and trigger navigation
+  // 3. Reactively handle successful mutation completion and immediately navigate
   useEffect(() => {
-    if (!analyzeMutation.isSuccess || !analyzeMutation.data) return;
+    if (!analyzeMutation.isSuccess || !analyzeMutation.data || hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
 
     setStage(STAGES.length);
-    const repoId = analyzeMutation.data.repository.id;
-    const timeout = setTimeout(() => {
-      navigate({
-        to: "/repo/$owner/$name",
-        params: { owner, name: repo },
-        search: { repoId },
-      });
-    }, 400);
+    const repository = analyzeMutation.data.repository;
+    const targetOwner = repository?.owner || ownerParam;
+    const targetName = repository?.name || repoParam;
+    const targetRepoId = repository?.id;
 
-    return () => clearTimeout(timeout);
-  }, [analyzeMutation.isSuccess, analyzeMutation.data, owner, repo, navigate]);
+    void navigate({
+      to: "/repo/$owner/$name",
+      params: { owner: targetOwner, name: targetName },
+      search: { repoId: targetRepoId },
+    });
+  }, [analyzeMutation.isSuccess, analyzeMutation.data, ownerParam, repoParam, navigate]);
 
   // 4. Reactively derive error state from mutation failure
   const errorMessage = analyzeMutation.isError
@@ -98,7 +100,7 @@ export function Analyzing() {
               <Waypoints className="size-4 text-primary" />
             </div>
             <span className="truncate font-mono text-sm">
-              {owner}/{repo}
+              {ownerParam}/{repoParam}
             </span>
           </div>
         </div>
