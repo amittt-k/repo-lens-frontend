@@ -44,7 +44,7 @@ function Landing() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border">
-        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3.5 sm:px-6">
+        <div className="mx-auto grid max-w-[1400px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="grid size-7 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10">
               <Waypoints className="size-4 text-primary" />
@@ -67,16 +67,16 @@ function Landing() {
       <main className="flex-1">
         <section className="hero-glow relative overflow-hidden border-b border-border">
           <div className="grid-backdrop pointer-events-none absolute inset-0 opacity-[0.18]" />
-          <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+          <div className="relative mx-auto max-w-[1400px] px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
             <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-primary">
               <GitBranch className="size-3.5" />
               static analysis · dependency graph
             </p>
-            <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
+            <h1 className="mt-4 max-w-4xl text-3xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
               Understand an unfamiliar repository
               <span className="block text-muted-foreground">before you touch a single line.</span>
             </h1>
-            <p className="mt-5 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <p className="mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base lg:text-lg">
               RepoLens turns a GitHub URL into a navigable map: file structure, code relationships, an
               interactive graph, traced flows and explanations you can actually read.
             </p>
@@ -86,13 +86,13 @@ function Landing() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+        <section className="mx-auto max-w-[1400px] px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
           <h2 className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
             How it reads code
           </h2>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((s, i) => (
-              <article key={s.title} className="panel-surface rounded-lg p-4">
+              <article key={s.title} className="panel-surface rounded-lg p-5">
                 <div className="flex items-center justify-between">
                   <s.icon className="size-4 text-primary" />
                   <span className="font-mono text-[10px] tabular-nums text-muted-foreground/60">
@@ -108,11 +108,11 @@ function Landing() {
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 sm:px-6">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-4 px-4 py-6 sm:px-6 lg:px-8">
           <p className="font-mono text-[11px] text-muted-foreground">
             RepoLens · static repository analysis engine
           </p>
-          <p className="max-w-md text-[11px] leading-relaxed text-muted-foreground/70">
+          <p className="max-w-lg text-[11px] leading-relaxed text-muted-foreground/70">
             Powered by static JavaScript/TypeScript AST parsing, dependency resolution, symbol relationship extraction, and graph modeling.
           </p>
         </div>
