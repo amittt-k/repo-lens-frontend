@@ -63,6 +63,46 @@ function isReactClassComponent(node) {
 }
 
 /**
+ * Unwraps higher-order function/component wrappers (e.g. asyncHandler, React.memo, memo, forwardRef, withAuth)
+ * to retrieve the underlying function or class body and JSX characteristics.
+ *
+ * @param {object} init - Initializer node.
+ * @returns {{
+ *   isFunction: boolean,
+ *   isClass: boolean,
+ *   body: object|null,
+ *   node: object|null
+ * }}
+ */
+export function unwrapFunctionOrComponent(init) {
+  if (!init || typeof init !== "object") {
+    return { isFunction: false, isClass: false, body: null, node: null };
+  }
+
+  if (init.type === "ArrowFunctionExpression" || init.type === "FunctionExpression") {
+    return { isFunction: true, isClass: false, body: init.body, node: init };
+  }
+
+  if (init.type === "ClassExpression") {
+    return { isFunction: false, isClass: true, body: init.body, node: init };
+  }
+
+  // Handle wrappers: asyncHandler(async (req, res) => ...), memo((props) => ...), forwardRef((props, ref) => ...)
+  if (init.type === "CallExpression" && Array.isArray(init.arguments)) {
+    for (const arg of init.arguments) {
+      if (arg && (arg.type === "ArrowFunctionExpression" || arg.type === "FunctionExpression")) {
+        return { isFunction: true, isClass: false, body: arg.body, node: arg };
+      }
+      if (arg && arg.type === "ClassExpression") {
+        return { isFunction: false, isClass: true, body: arg.body, node: arg };
+      }
+    }
+  }
+
+  return { isFunction: false, isClass: false, body: null, node: null };
+}
+
+/**
  * Parses raw JavaScript/TypeScript/JSX/TSX source code into an AST.
  *
  * @param {string} sourceCode - Raw source code string.
@@ -304,7 +344,7 @@ export function analyzeSource(sourceCode, options = {}) {
         break;
       }
 
-      // 7. Variable Declarations (Functions, Arrow Functions, Components)
+      // 7. Variable Declarations (Functions, Arrow Functions, Components, Wrappers)
       case "VariableDeclaration": {
         if (node.declarations) {
           for (const decl of node.declarations) {
@@ -312,15 +352,13 @@ export function analyzeSource(sourceCode, options = {}) {
               const varName = decl.id.name;
               const init = decl.init;
               const dLoc = decl.loc || loc;
+              const unwrapped = unwrapFunctionOrComponent(init);
 
-              if (
-                init.type === "ArrowFunctionExpression" ||
-                init.type === "FunctionExpression"
-              ) {
-                const isComp = isPascalCase(varName) && containsJsx(init);
+              if (unwrapped.isFunction) {
+                const isComp = isPascalCase(varName) && (containsJsx(unwrapped.node) || containsJsx(init));
                 addSymbol(varName, isComp ? "COMPONENT" : "FUNCTION", dLoc.start.line, dLoc.end.line);
-              } else if (init.type === "ClassExpression") {
-                const isComp = isReactClassComponent(init) || (isPascalCase(varName) && containsJsx(init));
+              } else if (unwrapped.isClass) {
+                const isComp = isReactClassComponent(unwrapped.node || init) || (isPascalCase(varName) && containsJsx(init));
                 addSymbol(varName, isComp ? "COMPONENT" : "CLASS", dLoc.start.line, dLoc.end.line);
               }
             }

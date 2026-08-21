@@ -1,5 +1,6 @@
 import prisma from "../config/database.js";
 import { buildGraph } from "../analyzers/graph/graphBuilder.js";
+import { resolveRepository } from "../utils/repositoryResolver.js";
 
 export class GraphServiceError extends Error {
   constructor(message, statusCode = 400) {
@@ -18,7 +19,7 @@ export class GraphService {
    * Retrieves all persisted analysis entities for a repository and transforms them
    * into a normalized graph structure.
    *
-   * @param {string} repositoryId - Repository UUID.
+   * @param {string} repositoryId - Repository UUID or owner:name identifier.
    * @param {object} [options={}] - Query/filtering options.
    * @returns {Promise<object>} - Normalized graph payload.
    */
@@ -28,13 +29,13 @@ export class GraphService {
     }
 
     // 1. Verify repository exists
-    const repository = await this.db.repository.findUnique({
-      where: { id: repositoryId },
-    });
+    const repository = await resolveRepository(repositoryId, this.db);
 
     if (!repository) {
-      throw new GraphServiceError(`Repository with ID "${repositoryId}" not found.`, 404);
+      throw new GraphServiceError(`Repository with ID or name "${repositoryId}" not found.`, 404);
     }
+
+    const actualRepoId = repository.id;
 
     // 2. Query all relevant entities in parallel batch queries with size bounds
     const MAX_GRAPH_NODES = 5000;
@@ -42,19 +43,19 @@ export class GraphService {
 
     const [files, symbols, relationships, apiRoutes] = await Promise.all([
       this.db.file.findMany({
-        where: { repositoryId },
+        where: { repositoryId: actualRepoId },
         take: MAX_GRAPH_NODES,
       }),
       this.db.symbol.findMany({
-        where: { file: { repositoryId } },
+        where: { file: { repositoryId: actualRepoId } },
         take: MAX_GRAPH_NODES,
       }),
       this.db.relationship.findMany({
-        where: { repositoryId },
+        where: { repositoryId: actualRepoId },
         take: MAX_GRAPH_EDGES,
       }),
       this.db.apiRoute.findMany({
-        where: { repositoryId },
+        where: { repositoryId: actualRepoId },
         take: MAX_GRAPH_NODES,
       }),
     ]);

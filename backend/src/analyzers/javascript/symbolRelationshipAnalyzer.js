@@ -1,4 +1,4 @@
-import { parseSourceCode } from "./astAnalyzer.js";
+import { parseSourceCode, unwrapFunctionOrComponent } from "./astAnalyzer.js";
 
 /**
  * Normalizes a path string to forward slashes without leading or trailing slashes.
@@ -322,82 +322,86 @@ export function analyzeSymbolRelationships(fileDataList = [], options = {}) {
         }
       }
 
+      // Helper to process calls and usages within a function, arrow function, or component body
+      const processFunctionOrComponentBody = (fnName, fnBody) => {
+        if (!fnName || !fnBody) return;
+        const fnSym = symbolMap.get(`${normPath}::${fnName}`);
+        const fnId = fnSym?.resolvedId || fnSym?.id;
+
+        if (fnId) {
+          const bodyRefs = extractBodyReferences(fnBody);
+
+          // E. CALLS relationships (Function -> Function/Method)
+          for (const call of bodyRefs.calls) {
+            const calleeSym = resolveTargetSymbol(normPath, fileImports, call.name);
+            if (calleeSym) {
+              const calleeId = calleeSym.resolvedId || calleeSym.id;
+              addRelationship(fnId, calleeId, "CALLS", {
+                sourceName: fnName,
+                targetName: calleeSym.name,
+                sourceFile: normPath,
+                targetFile: calleeSym.filePath || normPath,
+                startLine: call.startLine,
+                endLine: call.endLine,
+              });
+            }
+          }
+
+          // F. USES relationships (Component -> Component in JSX, Function -> Instantiated Class)
+          for (const jsx of bodyRefs.jsxUsages) {
+            const targetCompSym = resolveTargetSymbol(normPath, fileImports, jsx.name);
+            if (targetCompSym) {
+              const targetId = targetCompSym.resolvedId || targetCompSym.id;
+              addRelationship(fnId, targetId, "USES", {
+                sourceName: fnName,
+                targetName: targetCompSym.name,
+                sourceFile: normPath,
+                targetFile: targetCompSym.filePath || normPath,
+                usageType: "jsx_component",
+                startLine: jsx.startLine,
+                endLine: jsx.endLine,
+              });
+            }
+          }
+
+          for (const inst of bodyRefs.instantiations) {
+            const targetClsSym = resolveTargetSymbol(normPath, fileImports, inst.name);
+            if (targetClsSym) {
+              const targetId = targetClsSym.resolvedId || targetClsSym.id;
+              addRelationship(fnId, targetId, "USES", {
+                sourceName: fnName,
+                targetName: targetClsSym.name,
+                sourceFile: normPath,
+                targetFile: targetClsSym.filePath || normPath,
+                usageType: "instantiation",
+                startLine: inst.startLine,
+                endLine: inst.endLine,
+              });
+            }
+          }
+        }
+      };
+
       // Handle FunctionDeclaration & VariableDeclaration functions/components
       if (
         node.type === "FunctionDeclaration" ||
-        (node.type === "ExportNamedDeclaration" && node.declaration?.type === "FunctionDeclaration") ||
+        (node.type === "ExportNamedDeclaration" && node.declaration?.type === "FunctionDeclaration")
+      ) {
+        const decl = node.declaration || node;
+        if (decl.id?.name && decl.body) {
+          processFunctionOrComponentBody(decl.id.name, decl.body);
+        }
+      } else if (
         node.type === "VariableDeclaration" ||
         (node.type === "ExportNamedDeclaration" && node.declaration?.type === "VariableDeclaration")
       ) {
         const decl = node.declaration || node;
-        let fnName = null;
-        let fnBody = null;
-
-        if (decl.type === "FunctionDeclaration" && decl.id?.name) {
-          fnName = decl.id.name;
-          fnBody = decl.body;
-        } else if (decl.type === "VariableDeclaration" && decl.declarations) {
+        if (decl.declarations) {
           for (const d of decl.declarations) {
-            if (d.id?.type === "Identifier" && (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression")) {
-              fnName = d.id.name;
-              fnBody = d.init.body;
-            }
-          }
-        }
-
-        if (fnName && fnBody) {
-          const fnSym = symbolMap.get(`${normPath}::${fnName}`);
-          const fnId = fnSym?.resolvedId || fnSym?.id;
-
-          if (fnId) {
-            const bodyRefs = extractBodyReferences(fnBody);
-
-            // E. CALLS relationships (Function -> Function/Method)
-            for (const call of bodyRefs.calls) {
-              const calleeSym = resolveTargetSymbol(normPath, fileImports, call.name);
-              if (calleeSym) {
-                const calleeId = calleeSym.resolvedId || calleeSym.id;
-                addRelationship(fnId, calleeId, "CALLS", {
-                  sourceName: fnName,
-                  targetName: calleeSym.name,
-                  sourceFile: normPath,
-                  targetFile: calleeSym.filePath || normPath,
-                  startLine: call.startLine,
-                  endLine: call.endLine,
-                });
-              }
-            }
-
-            // F. USES relationships (Component -> Component in JSX, Function -> Instantiated Class)
-            for (const jsx of bodyRefs.jsxUsages) {
-              const targetCompSym = resolveTargetSymbol(normPath, fileImports, jsx.name);
-              if (targetCompSym) {
-                const targetId = targetCompSym.resolvedId || targetCompSym.id;
-                addRelationship(fnId, targetId, "USES", {
-                  sourceName: fnName,
-                  targetName: targetCompSym.name,
-                  sourceFile: normPath,
-                  targetFile: targetCompSym.filePath || normPath,
-                  usageType: "jsx_component",
-                  startLine: jsx.startLine,
-                  endLine: jsx.endLine,
-                });
-              }
-            }
-
-            for (const inst of bodyRefs.instantiations) {
-              const targetClsSym = resolveTargetSymbol(normPath, fileImports, inst.name);
-              if (targetClsSym) {
-                const targetId = targetClsSym.resolvedId || targetClsSym.id;
-                addRelationship(fnId, targetId, "USES", {
-                  sourceName: fnName,
-                  targetName: targetClsSym.name,
-                  sourceFile: normPath,
-                  targetFile: targetClsSym.filePath || normPath,
-                  usageType: "instantiation",
-                  startLine: inst.startLine,
-                  endLine: inst.endLine,
-                });
+            if (d.id?.type === "Identifier" && d.init) {
+              const unwrapped = unwrapFunctionOrComponent(d.init);
+              if (unwrapped.isFunction && unwrapped.body) {
+                processFunctionOrComponentBody(d.id.name, unwrapped.body);
               }
             }
           }

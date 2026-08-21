@@ -194,7 +194,7 @@ export class GitHubService {
    * @param {string} name - Repository name.
    * @param {string} [branch="main"] - Target branch.
    * @param {string} filePath - Repository-relative file path.
-   * @param {object} [options={}] - Options (e.g. timeoutMs).
+   * @param {object} [options={}] - Options (e.g. timeoutMs, signal).
    * @returns {Promise<string>}
    */
   async fetchRawFileContent(owner, name, branch = "main", filePath = "", options = {}) {
@@ -209,15 +209,22 @@ export class GitHubService {
       "User-Agent": "RepoLens-Analyzer",
     };
 
-    if (this.token) {
-      headers.Authorization = `token ${this.token}`;
-    }
-
-    const timeoutMs = options.timeoutMs || 5000;
+    const timeoutMs = options.timeoutMs || 3500;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
     }, timeoutMs);
+
+    // If caller provided an external abort signal, listen to it
+    const externalSignal = options.signal;
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        throw new GitHubApiError(`Operation aborted before fetching "${cleanPath}"`, 504);
+      }
+      externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+    }
 
     try {
       const res = await this.fetchFn(rawUrl, {
@@ -226,6 +233,9 @@ export class GitHubService {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener("abort", onExternalAbort);
+      }
 
       if (!res.ok) {
         throw new GitHubApiError(`Failed to fetch raw file "${cleanPath}" (${res.status}): ${res.statusText}`, res.status);
@@ -234,6 +244,9 @@ export class GitHubService {
       return await res.text();
     } catch (err) {
       clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener("abort", onExternalAbort);
+      }
       if (err.name === "AbortError" || controller.signal.aborted) {
         throw new GitHubApiError(`Timeout fetching raw file "${cleanPath}" after ${timeoutMs}ms`, 504);
       }
@@ -254,26 +267,38 @@ export class GitHubService {
   async fetchRawFilesParallel(owner, name, branch = "main", targetPaths = [], options = {}) {
     const fileMap = new Map();
     const pathsToFetch = targetPaths.slice(0, options.maxRawFiles || 300);
-    const concurrency = options.concurrency || 8;
-    const perFileTimeout = options.rawFileTimeoutMs || 5000;
+    const concurrency = options.concurrency || 16;
+    const perFileTimeout = options.rawFileTimeoutMs || 3500;
+    const batchTotalTimeoutMs = options.batchTotalTimeoutMs || 15000;
 
-    for (let i = 0; i < pathsToFetch.length; i += concurrency) {
-      const chunk = pathsToFetch.slice(i, i + concurrency);
-      await Promise.allSettled(
-        chunk.map(async (filePath) => {
-          try {
-            const content = await this.fetchRawFileContent(owner, name, branch, filePath, {
-              timeoutMs: perFileTimeout,
-              ...options,
-            });
-            if (typeof content === "string") {
-              fileMap.set(filePath, content);
+    const batchController = new AbortController();
+    const batchTimeoutId = setTimeout(() => {
+      batchController.abort();
+    }, batchTotalTimeoutMs);
+
+    try {
+      for (let i = 0; i < pathsToFetch.length; i += concurrency) {
+        if (batchController.signal.aborted) break;
+        const chunk = pathsToFetch.slice(i, i + concurrency);
+        await Promise.allSettled(
+          chunk.map(async (filePath) => {
+            try {
+              const content = await this.fetchRawFileContent(owner, name, branch, filePath, {
+                timeoutMs: perFileTimeout,
+                signal: batchController.signal,
+                ...options,
+              });
+              if (typeof content === "string") {
+                fileMap.set(filePath, content);
+              }
+            } catch {
+              // Promise.allSettled guarantees one failed file never fails the batch
             }
-          } catch {
-            // Promise.allSettled guarantees one failed file never fails the batch
-          }
-        }),
-      );
+          }),
+        );
+      }
+    } finally {
+      clearTimeout(batchTimeoutId);
     }
 
     return fileMap;

@@ -4,6 +4,7 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  MarkerType,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -143,34 +144,27 @@ function mapEdges(
 
   return sourceEdges.map((e) => {
     const prevEdge = prevEdgeMap.get(e.id);
-    const isConnected = hasSelection && (e.source === selectedId || e.target === selectedId);
+    const isOutgoing = hasSelection && e.source === selectedId;
+    const isIncoming = hasSelection && e.target === selectedId;
+    const isConnected = isOutgoing || isIncoming;
     const inTrace = isTraceActive && isEdgeInTrace(e, traceIds);
     const dimmed = isTraceActive && traceIds.length > 0 ? !inTrace : hasSelection && !isConnected;
     const relTokens = getRelationTokens(e.relation || e.symbol);
 
     const animated = inTrace || isConnected;
+    // Outgoing dependencies styled with primary vibrant stroke; incoming dependents styled with vibrant emerald stroke
     const stroke = inTrace
       ? "var(--color-primary)"
-      : isConnected
+      : isOutgoing
         ? "var(--color-primary)"
-        : relTokens.cssVar;
-    const strokeWidth = inTrace ? 3 : isConnected ? 2.5 : 1.2;
-    const opacity = dimmed ? 0.08 : inTrace ? 1 : isConnected ? 1 : 0.8;
-    const labelBgOpacity = dimmed ? 0 : 0.9;
+        : isIncoming
+          ? "oklch(0.78 0.18 150)"
+          : relTokens.cssVar;
 
-    // Reuse prevEdge if all styling and animation properties are identical
-    if (
-      prevEdge &&
-      prevEdge.animated === animated &&
-      prevEdge.label === relTokens.label &&
-      prevEdge.style?.stroke === stroke &&
-      prevEdge.style?.strokeWidth === strokeWidth &&
-      prevEdge.style?.opacity === opacity &&
-      prevEdge.style?.strokeDasharray === relTokens.dash &&
-      prevEdge.labelBgStyle?.opacity === labelBgOpacity
-    ) {
-      return prevEdge;
-    }
+    const strokeWidth = inTrace ? 3 : isConnected ? 2.6 : 1.8;
+    const opacity = dimmed ? 0.08 : inTrace ? 1 : isConnected ? 1 : 0.85;
+    const labelBgOpacity = dimmed ? 0 : 0.9;
+    const markerSize = isConnected || inTrace ? 15 : 12;
 
     return {
       id: e.id,
@@ -178,6 +172,12 @@ function mapEdges(
       target: e.target,
       label: relTokens.label,
       animated,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: markerSize,
+        height: markerSize,
+        color: stroke,
+      },
       style: {
         stroke,
         strokeWidth,

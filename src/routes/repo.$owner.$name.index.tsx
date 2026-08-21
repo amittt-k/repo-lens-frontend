@@ -33,9 +33,10 @@ function Overview() {
   const navigate = useNavigate();
   const { selectedId, setSelectedId, repoId } = useWorkspaceState();
 
-  const { data: repository, isLoading: repoLoading } = useRepository(repoId);
-  const { data: fileTree, isLoading: filesLoading } = useRepositoryFiles(repoId);
-  const { data: graphData, isLoading: graphLoading } = useRepositoryGraph(repoId);
+  const effectiveRepoId = repoId || (owner && name ? `${owner}:${name}` : undefined);
+  const { data: repository, isLoading: repoLoading } = useRepository(effectiveRepoId);
+  const { data: fileTree, isLoading: filesLoading } = useRepositoryFiles(effectiveRepoId);
+  const { data: graphData, isLoading: graphLoading } = useRepositoryGraph(effectiveRepoId);
 
   const totalFiles = repository?._count?.files ?? graphData?.stats?.nodesByType?.["file"] ?? 0;
   const totalNodes = graphData?.stats?.totalNodes ?? 0;

@@ -17,7 +17,7 @@ import { SearchPalette } from "@/components/repolens/SearchPalette";
 import { EmptyState } from "@/components/repolens/primitives";
 import type { GraphEdgeData, GraphNodeData } from "@/data/mock-repo";
 import { useGraphShortcuts } from "@/hooks/useGraphShortcuts";
-import { useRepositoryFiles, useRepositoryGraph } from "@/hooks/useRepositoryData";
+import { useRepository, useRepositoryFiles, useRepositoryGraph } from "@/hooks/useRepositoryData";
 import { useWorkspaceState } from "@/hooks/useWorkspaceState";
 import { discoverRepositoryFlows, traceFlowFromNode } from "@/utils/flowTracing";
 
@@ -53,43 +53,62 @@ function GraphWorkspace() {
   const { owner, name } = Route.useParams();
   const { repoId } = useWorkspaceState();
 
-  const { data: graphData, isLoading: graphLoading } = useRepositoryGraph(repoId);
-  const { data: fileTree } = useRepositoryFiles(repoId);
+  const effectiveRepoId = repoId || (owner && name ? `${owner}:${name}` : undefined);
+  const { data: repository } = useRepository(effectiveRepoId);
+  const { data: graphData, isLoading: graphLoading } = useRepositoryGraph(effectiveRepoId);
+  const { data: fileTree } = useRepositoryFiles(effectiveRepoId);
 
-  // Group nodes by file path for structured hierarchical/columnar positioning
+  // Group nodes by file path for structured hierarchical/columnar positioning with zero overlap
   const mappedNodes: GraphNodeData[] = useMemo(() => {
     if (!graphData?.nodes) return [];
 
-    const fileGroups: Record<string, number> = {};
-    let groupIndex = 0;
-
-    return graphData.nodes.map((n, i) => {
-      const kind = (n.type || "file").toLowerCase() as any;
-      const nData = (n.data || {}) as Record<string, any>;
+    const filesMap = new Map<string, typeof graphData.nodes>();
+    for (const node of graphData.nodes) {
+      const nData = (node.data || {}) as Record<string, any>;
       const filePath = nData["filePath"] || "root";
-
-      if (fileGroups[filePath] === undefined) {
-        fileGroups[filePath] = groupIndex++;
+      if (!filesMap.has(filePath)) {
+        filesMap.set(filePath, []);
       }
+      filesMap.get(filePath)!.push(node);
+    }
 
-      const col = fileGroups[filePath] % 6;
-      const row = Math.floor(fileGroups[filePath] / 6) * 4 + (i % 4);
+    const COLUMNS = 5;
+    const COLUMN_WIDTH = 340;
+    const NODE_HEIGHT = 120;
+    const FILE_MARGIN_BOTTOM = 50;
 
-      const x = col * 320 + 40;
-      const y = row * 160 + 40;
+    const colY = new Array(COLUMNS).fill(40);
+    const result: GraphNodeData[] = [];
 
-      return {
-        id: n.id,
-        label: n.label,
-        path: nData["filePath"] || "",
-        kind,
-        loc: nData["loc"] || 0,
-        exports: [],
-        imports: [],
-        summary: `${n.type} in ${nData["filePath"] || "repository"}`,
-        position: { x, y },
-      };
-    });
+    let fileIndex = 0;
+    for (const [, nodesInFile] of filesMap.entries()) {
+      const col = fileIndex % COLUMNS;
+      const startY = colY[col];
+
+      nodesInFile.forEach((n, idx) => {
+        const kind = (n.type || "file").toLowerCase() as any;
+        const nData = (n.data || {}) as Record<string, any>;
+        const x = col * COLUMN_WIDTH + 40;
+        const y = startY + idx * NODE_HEIGHT;
+
+        result.push({
+          id: n.id,
+          label: n.label,
+          path: nData["filePath"] || "",
+          kind,
+          loc: nData["loc"] || 0,
+          exports: [],
+          imports: [],
+          summary: `${n.type} in ${nData["filePath"] || "repository"}`,
+          position: { x, y },
+        });
+      });
+
+      colY[col] = startY + nodesInFile.length * NODE_HEIGHT + FILE_MARGIN_BOTTOM;
+      fileIndex++;
+    }
+
+    return result;
   }, [graphData]);
 
   const mappedEdges: GraphEdgeData[] = useMemo(() => {

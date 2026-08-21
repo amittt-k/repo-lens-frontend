@@ -4,6 +4,7 @@ import fileTreeService from "../services/fileTree.service.js";
 import orchestratorService from "../services/orchestrator.service.js";
 import graphService from "../services/graph.service.js";
 import prisma from "../config/database.js";
+import { resolveRepository } from "../utils/repositoryResolver.js";
 
 export class RepositoryController {
   async validateRepository(req, res, next) {
@@ -29,19 +30,16 @@ export class RepositoryController {
   async getRepository(req, res, next) {
     try {
       const { id } = req.params;
-      const repository = await prisma.repository.findUnique({
-        where: { id },
-        include: {
-          analyses: {
-            orderBy: { startedAt: "desc" },
-            take: 1,
-          },
-          _count: {
-            select: {
-              files: true,
-              relationships: true,
-              apiRoutes: true,
-            },
+      const repository = await resolveRepository(id, prisma, {
+        analyses: {
+          orderBy: { startedAt: "desc" },
+          take: 1,
+        },
+        _count: {
+          select: {
+            files: true,
+            relationships: true,
+            apiRoutes: true,
           },
         },
       });
@@ -49,7 +47,7 @@ export class RepositoryController {
         return res.status(404).json({
           status: "error",
           statusCode: 404,
-          message: `Repository with ID "${id}" not found.`,
+          message: `Repository with ID or name "${id}" not found.`,
         });
       }
       return res.status(200).json({
@@ -84,14 +82,12 @@ export class RepositoryController {
   async getRelationships(req, res, next) {
     try {
       const { id } = req.params;
-      const repository = await prisma.repository.findUnique({
-        where: { id },
-      });
+      const repository = await resolveRepository(id, prisma);
       if (!repository) {
         return res.status(404).json({
           status: "error",
           statusCode: 404,
-          message: `Repository with ID "${id}" not found.`,
+          message: `Repository with ID or name "${id}" not found.`,
         });
       }
 
@@ -119,7 +115,7 @@ export class RepositoryController {
         }
       }
 
-      const whereClause = { repositoryId: id };
+      const whereClause = { repositoryId: repository.id };
       if (typeFilter) {
         const types = typeFilter.split(",").map((t) => t.trim().toUpperCase());
         whereClause.relationshipType = types.length === 1 ? types[0] : { in: types };
@@ -132,7 +128,7 @@ export class RepositoryController {
 
       return res.status(200).json({
         success: true,
-        repositoryId: id,
+        repositoryId: repository.id,
         total: relationships.length,
         relationships,
       });
@@ -144,25 +140,23 @@ export class RepositoryController {
   async getRoutes(req, res, next) {
     try {
       const { id } = req.params;
-      const repository = await prisma.repository.findUnique({
-        where: { id },
-      });
+      const repository = await resolveRepository(id, prisma);
       if (!repository) {
         return res.status(404).json({
           status: "error",
           statusCode: 404,
-          message: `Repository with ID "${id}" not found.`,
+          message: `Repository with ID or name "${id}" not found.`,
         });
       }
 
       const routes = await prisma.apiRoute.findMany({
-        where: { repositoryId: id },
+        where: { repositoryId: repository.id },
         orderBy: [{ path: "asc" }, { method: "asc" }],
       });
 
       return res.status(200).json({
         success: true,
-        repositoryId: id,
+        repositoryId: repository.id,
         total: routes.length,
         routes,
       });
@@ -171,11 +165,12 @@ export class RepositoryController {
     }
   }
 
-
   async getFileTree(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await fileTreeService.getRepositoryFileTree(id);
+      const repository = await resolveRepository(id, prisma);
+      const targetId = repository ? repository.id : id;
+      const result = await fileTreeService.getRepositoryFileTree(targetId);
       return res.status(200).json(result);
     } catch (err) {
       next(err);
@@ -185,7 +180,9 @@ export class RepositoryController {
   async analyzeRepository(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await orchestratorService.analyzeRepository(id, {});
+      const repository = await resolveRepository(id, prisma);
+      const targetId = repository ? repository.id : id;
+      const result = await orchestratorService.analyzeRepository(targetId, {});
       return res.status(200).json(result);
     } catch (err) {
       next(err);
@@ -195,7 +192,9 @@ export class RepositoryController {
   async getGraph(req, res, next) {
     try {
       const { id } = req.params;
-      const result = await graphService.getRepositoryGraph(id, req.query || {});
+      const repository = await resolveRepository(id, prisma);
+      const targetId = repository ? repository.id : id;
+      const result = await graphService.getRepositoryGraph(targetId, req.query || {});
       return res.status(200).json(result);
     } catch (err) {
       next(err);

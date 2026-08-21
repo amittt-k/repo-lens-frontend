@@ -1,6 +1,7 @@
 import prisma from "../config/database.js";
 import { buildFileTree, findNodeByPath, flattenTree } from "../utils/fileTree.js";
 import { isSupportedSourceFile } from "../utils/fileFilter.js";
+import { resolveRepository } from "../utils/repositoryResolver.js";
 
 /**
  * Custom error for file tree operations.
@@ -21,7 +22,7 @@ export class FileTreeService {
   /**
    * Retrieves the structured hierarchical file/folder tree for a repository from PostgreSQL.
    *
-   * @param {string} repositoryId - UUID of the repository.
+   * @param {string} repositoryId - UUID or owner:name of the repository.
    * @returns {Promise<object>} - Structured file tree and repository statistics.
    */
   async getRepositoryFileTree(repositoryId) {
@@ -30,22 +31,22 @@ export class FileTreeService {
     }
 
     // 1. Fetch repository record
-    const repository = await this.db.repository.findUnique({
-      where: { id: repositoryId },
-    });
+    const repository = await resolveRepository(repositoryId, this.db);
 
     if (!repository) {
-      throw new FileTreeError(`Repository with ID "${repositoryId}" not found.`, 404);
+      throw new FileTreeError(`Repository with ID or name "${repositoryId}" not found.`, 404);
     }
+
+    const actualRepoId = repository.id;
 
     // 2. Fetch all ingested file records for the repository
     const files = await this.db.file.findMany({
-      where: { repositoryId },
+      where: { repositoryId: actualRepoId },
       orderBy: { path: "asc" },
     });
 
     // 3. Construct hierarchical file tree
-    const tree = buildFileTree(files, { repositoryId });
+    const tree = buildFileTree(files, { repositoryId: actualRepoId });
 
     // 4. Calculate tree metrics
     const flatNodes = flattenTree(tree);
