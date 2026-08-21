@@ -377,5 +377,112 @@ describe("API Route Service Unit Tests", () => {
 
     assert.equal(createdRoutes[0].path, "/users");
     assert.equal(createdRelationships[0].relationshipType, "HANDLES_ROUTE");
+    // Verify targetId was remapped to a valid UUID
+    assert.match(createdRelationships[0].targetId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    assert.equal(createdRelationships[0].targetId, createdRoutes[0].id);
+  });
+
+  it("assigns unique UUIDs to every persisted route and prevents primary key collisions", async () => {
+    let persistedData = [];
+
+    const mockPrisma = {
+      apiRoute: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async ({ data }) => {
+          persistedData = data;
+          return { count: data.length };
+        },
+      },
+      relationship: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async ({ data }) => ({ count: data.length }),
+      },
+    };
+
+    const service = new ApiRouteService({ prisma: mockPrisma });
+
+    // Multiple routes from different chapters/files with identical method & path
+    const routes = [
+      { id: "route-null-POST-_api_users", method: "POST", path: "/api/users", fileId: "f-chap1", handler: "create1" },
+      { id: "route-null-POST-_api_users", method: "POST", path: "/api/users", fileId: "f-chap2", handler: "create2" },
+      { id: "route-null-POST-_api_users", method: "POST", path: "/api/users", fileId: "f-chap3", handler: "create3" },
+      { id: "custom-id-1", method: "GET", path: "/api/users/:id", fileId: "f-chap1", handler: "get1" },
+      { id: "custom-id-2", method: "GET", path: "/api/users/:userId", fileId: "f-chap2", handler: "get2" },
+    ];
+
+    const result = await service.persistApiRoutes("repo-multi", routes, []);
+    assert.equal(result.routesCount, 5);
+
+    // Verify all IDs are valid UUIDs and uniquely distinct
+    const ids = persistedData.map((r) => r.id);
+    const idSet = new Set(ids);
+    assert.equal(idSet.size, 5, "All 5 routes must have distinct unique UUIDs");
+
+    for (const id of ids) {
+      assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    }
+  });
+
+  it("handles duplicate analyzer output cleanly with in-memory deduplication", async () => {
+    let persistedData = [];
+
+    const mockPrisma = {
+      apiRoute: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async ({ data }) => {
+          persistedData = data;
+          return { count: data.length };
+        },
+      },
+      relationship: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async ({ data }) => ({ count: data.length }),
+      },
+    };
+
+    const service = new ApiRouteService({ prisma: mockPrisma });
+
+    // Exact same route duplicated across multiple AST traversal passes
+    const duplicatedRoutes = [
+      { id: "dup-1", method: "GET", path: "/health", fileId: "f-app", handler: "healthCheck" },
+      { id: "dup-2", method: "GET", path: "/health", fileId: "f-app", handler: "healthCheck" },
+    ];
+
+    const result = await service.persistApiRoutes("repo-dup", duplicatedRoutes, []);
+    assert.equal(result.routesCount, 1);
+    assert.equal(persistedData.length, 1);
+  });
+
+  it("supports repeated repository re-analysis without orphan accumulation or collisions", async () => {
+    let deleteCallCount = 0;
+    let createCallCount = 0;
+
+    const mockPrisma = {
+      apiRoute: {
+        deleteMany: async () => {
+          deleteCallCount++;
+          return { count: 5 };
+        },
+        createMany: async ({ data }) => {
+          createCallCount++;
+          return { count: data.length };
+        },
+      },
+      relationship: {
+        deleteMany: async () => ({ count: 0 }),
+        createMany: async ({ data }) => ({ count: data.length }),
+      },
+    };
+
+    const service = new ApiRouteService({ prisma: mockPrisma });
+    const routes = [{ method: "GET", path: "/users", fileId: "f-1" }];
+
+    // Pass 1
+    await service.persistApiRoutes("repo-repeat", routes, []);
+    // Pass 2 (re-analysis)
+    await service.persistApiRoutes("repo-repeat", routes, []);
+
+    assert.equal(deleteCallCount, 2);
+    assert.equal(createCallCount, 2);
   });
 });

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { parseSourceCode } from "./astAnalyzer.js";
 
 /**
@@ -311,13 +312,13 @@ export function analyzeApiRoutes(fileDataList = [], options = {}) {
             }
 
             const loc = node.loc || { start: { line: 1 }, end: { line: 1 } };
-            const routeKey = `${fileId}::${methodName}::${finalPath}`;
+            const routeKey = `${normPath}::${methodName}::${finalPath}::${handlerName || "none"}::${loc.start.line}`;
 
             if (!routeKeySet.has(routeKey)) {
               routeKeySet.add(routeKey);
 
               const routeRecord = {
-                id: `route-${fileId}-${methodName}-${finalPath.replace(/[^a-zA-Z0-9]/g, "_")}`,
+                id: randomUUID(),
                 method: methodName,
                 path: finalPath,
                 fileId: f.id || null,
@@ -374,18 +375,17 @@ export function analyzeApiRoutes(fileDataList = [], options = {}) {
           const methodName = node.callee.property.name.toUpperCase();
           const finalPath = normalizeRoutePath(chainedPath);
           const loc = node.loc || { start: { line: 1 }, end: { line: 1 } };
-          const routeKey = `${fileId}::${methodName}::${finalPath}`;
+          let handlerName = null;
+          if (node.arguments?.length >= 1) {
+            handlerName = extractHandlerName(node.arguments[node.arguments.length - 1]);
+          }
+          const routeKey = `${normPath}::${methodName}::${finalPath}::${handlerName || "none"}::${loc.start.line}`;
 
           if (!routeKeySet.has(routeKey)) {
             routeKeySet.add(routeKey);
 
-            let handlerName = null;
-            if (node.arguments?.length >= 1) {
-              handlerName = extractHandlerName(node.arguments[node.arguments.length - 1]);
-            }
-
             const routeRecord = {
-              id: `route-${fileId}-${methodName}-${finalPath.replace(/[^a-zA-Z0-9]/g, "_")}`,
+              id: randomUUID(),
               method: methodName,
               path: finalPath,
               fileId: f.id || null,

@@ -155,7 +155,14 @@ export function buildGraph({
     nodeMap.set(routeNode.id, routeNode);
     routeLookupByIdOrKey.set(r.id, routeNode);
     if (r.method && r.path) {
-      routeLookupByIdOrKey.set(`${r.method.toUpperCase()} ${r.path}`, routeNode);
+      const methodUpper = r.method.toUpperCase();
+      routeLookupByIdOrKey.set(`${methodUpper} ${r.path}`, routeNode);
+      if (r.fileId) {
+        routeLookupByIdOrKey.set(`${r.fileId}::${methodUpper}::${r.path}`, routeNode);
+      }
+      if (parentFile?.path) {
+        routeLookupByIdOrKey.set(`${normalizePath(parentFile.path)}::${methodUpper}::${r.path}`, routeNode);
+      }
     }
   }
 

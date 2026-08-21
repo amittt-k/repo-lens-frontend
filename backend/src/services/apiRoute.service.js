@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import prisma from "../config/database.js";
 import { isSupportedSourceFile } from "../utils/fileFilter.js";
 import { analyzeSource } from "../analyzers/javascript/astAnalyzer.js";
@@ -19,6 +20,8 @@ export class ApiRouteError extends Error {
     this.statusCode = statusCode;
   }
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ApiRouteService {
   constructor(options = {}) {
@@ -130,35 +133,76 @@ export class ApiRouteService {
     let routesCount = 0;
     let relationshipsCount = 0;
 
-    if (Array.isArray(routes) && routes.length > 0) {
-      const routeRecords = routes.map((r) => ({
-        id: r.id || undefined,
-        repositoryId,
-        method: r.method,
-        path: r.path,
-        fileId: r.fileId || null,
-        handler: r.handler || null,
-      }));
+    const routeIdMap = new Map();
 
-      const routeResult = await this.db.apiRoute.createMany({
-        data: routeRecords,
-      });
-      routesCount = routeResult.count;
+    if (Array.isArray(routes) && routes.length > 0) {
+      const seenRouteKeys = new Set();
+      const routeRecords = [];
+
+      for (const r of routes) {
+        if (!r || !r.method || !r.path) continue;
+        const normMethod = String(r.method).toUpperCase();
+        const normPath = String(r.path);
+        const fileId = r.fileId || null;
+        const handler = r.handler || null;
+
+        // Deduplicate identical route entries per repository
+        const dedupeKey = `${fileId || "null"}::${normMethod}::${normPath}::${handler || "null"}`;
+        if (seenRouteKeys.has(dedupeKey)) continue;
+        seenRouteKeys.add(dedupeKey);
+
+        const id = r.id && UUID_REGEX.test(r.id) ? r.id : randomUUID();
+        if (r.id) {
+          routeIdMap.set(r.id, id);
+        }
+
+        routeRecords.push({
+          id,
+          repositoryId,
+          method: normMethod,
+          path: normPath,
+          fileId,
+          handler,
+        });
+      }
+
+      if (routeRecords.length > 0) {
+        const routeResult = await this.db.apiRoute.createMany({
+          data: routeRecords,
+        });
+        routesCount = routeResult.count;
+      }
     }
 
     if (Array.isArray(relationships) && relationships.length > 0) {
-      const relRecords = relationships.map((rel) => ({
-        repositoryId,
-        sourceId: rel.sourceId,
-        targetId: rel.targetId,
-        relationshipType: rel.relationshipType,
-        metadata: rel.metadata || null,
-      }));
+      const seenRelKeys = new Set();
+      const relRecords = [];
 
-      const relResult = await this.db.relationship.createMany({
-        data: relRecords,
-      });
-      relationshipsCount = relResult.count;
+      for (const rel of relationships) {
+        if (!rel || !rel.sourceId || !rel.targetId || !rel.relationshipType) continue;
+
+        const remappedSource = routeIdMap.get(rel.sourceId) || rel.sourceId;
+        const remappedTarget = routeIdMap.get(rel.targetId) || rel.targetId;
+
+        const relKey = `${remappedSource}::${rel.relationshipType}::${remappedTarget}`;
+        if (seenRelKeys.has(relKey)) continue;
+        seenRelKeys.add(relKey);
+
+        relRecords.push({
+          repositoryId,
+          sourceId: remappedSource,
+          targetId: remappedTarget,
+          relationshipType: rel.relationshipType,
+          metadata: rel.metadata || null,
+        });
+      }
+
+      if (relRecords.length > 0) {
+        const relResult = await this.db.relationship.createMany({
+          data: relRecords,
+        });
+        relationshipsCount = relResult.count;
+      }
     }
 
     return {
