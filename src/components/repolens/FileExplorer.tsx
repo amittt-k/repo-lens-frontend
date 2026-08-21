@@ -46,19 +46,19 @@ function TreeRow({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
-          style={{ paddingLeft: depth * 12 + 8 }}
+          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
+          style={{ paddingLeft: depth * 12 + 6 }}
           aria-expanded={isOpen}
         >
           <ChevronRight
-            className={cn("size-3.5 shrink-0 transition-transform", isOpen && "rotate-90")}
+            className={cn("size-3 shrink-0 transition-transform text-muted-foreground/60", isOpen && "rotate-90 text-foreground")}
           />
           {isOpen ? (
-            <FolderOpen className="size-3.5 shrink-0 text-node-module" />
+            <FolderOpen className="size-3.5 shrink-0 text-sky-400" />
           ) : (
-            <FolderClosed className="size-3.5 shrink-0 text-node-module" />
+            <FolderClosed className="size-3.5 shrink-0 text-sky-400/80" />
           )}
-          <span className="truncate font-mono text-xs">{node.name}</span>
+          <span className="truncate">{node.name}</span>
         </button>
         {isOpen
           ? (node.children ?? []).map((child) => (
@@ -81,15 +81,17 @@ function TreeRow({
     <button
       type="button"
       onClick={() => onSelect(node)}
-      style={{ paddingLeft: depth * 12 + 8 }}
+      style={{ paddingLeft: depth * 12 + 6 }}
       className={cn(
-        "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md py-1.5 pr-2 text-left transition-colors",
-        active ? "bg-primary/12 text-foreground" : "text-muted-foreground hover:bg-elevated hover:text-foreground",
+        "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded py-1 pr-2 text-left font-mono text-xs transition-colors",
+        active
+          ? "bg-primary/15 text-primary font-medium"
+          : "text-muted-foreground hover:bg-elevated hover:text-foreground",
       )}
     >
       <span className="flex min-w-0 items-center gap-1.5">
-        <File className="size-3.5 shrink-0 opacity-60" />
-        <span className="truncate font-mono text-xs">{node.name}</span>
+        <File className="size-3 shrink-0 opacity-50" />
+        <span className="truncate">{node.name}</span>
       </span>
       {node.loc ? (
         <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground/60">
@@ -117,18 +119,18 @@ export function FileExplorer({
   const filteredTree = useMemo(() => filterTree(tree, query), [tree, query]);
 
   return (
-    <div className={cn("flex min-h-0 flex-col", className)}>
-      <div className="border-b border-border p-3">
+    <div className={cn("flex min-h-0 flex-col bg-surface", className)}>
+      <div className="border-b border-border p-2">
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter files…"
-          className="h-8 bg-background font-mono text-xs"
+          placeholder="Filter files (path or name)…"
+          className="h-7 bg-background font-mono text-xs"
           aria-label="Filter files"
         />
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-2">
+        <div className="p-1.5 space-y-0.5">
           {filteredTree.length ? (
             filteredTree.map((node) => (
               <TreeRow
@@ -143,17 +145,17 @@ export function FileExplorer({
           ) : (
             <EmptyState
               title="No matching files"
-              description="No files found matching that filter. Clear the search to see the full repository structure."
+              description="No files found matching the search filter."
             />
           )}
         </div>
       </ScrollArea>
 
-      <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          structure
+      <div className="flex items-center justify-between gap-2 border-t border-border bg-surface/50 px-3 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          directory tree
         </span>
-        <KindBadge kind="module" />
+        <KindBadge kind="file" />
       </div>
     </div>
   );

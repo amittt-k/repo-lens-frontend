@@ -69,18 +69,18 @@ export function NodeDetailsPanel({
   onTrace,
 }: NodeDetailsPanelProps) {
   const nodeId = node?.id;
-  const { data: liveNode, isLoading: nodeLoading, isError: nodeError } = useNodeDetails(nodeId);
-  const { data: relationshipsData, isLoading: relsLoading } = useNodeRelationships(nodeId);
+  const { data: liveNode, isLoading: nodeLoading } = useNodeDetails(nodeId);
+  const { data: relationshipsData } = useNodeRelationships(nodeId);
 
   if (!nodeId) {
     return (
-      <div className="panel-surface flex h-full flex-col overflow-hidden rounded-lg">
-        <PanelHeading title="Node details" />
+      <div className="panel-surface flex h-full flex-col overflow-hidden rounded-md">
+        <PanelHeading title="Node Details" />
         <EmptyState
           className="flex-1"
-          icon={<MousePointerClick className="size-4" />}
+          icon={<MousePointerClick className="size-3.5" />}
           title="No entity selected"
-          description="Pick a file in the explorer or click a node in the graph to inspect its AST metadata and relationships."
+          description="Click any node in the graph or file tree to inspect its AST metadata, calls, and relationships."
         />
       </div>
     );
@@ -88,8 +88,8 @@ export function NodeDetailsPanel({
 
   if (nodeLoading && !liveNode) {
     return (
-      <div className="panel-surface flex h-full flex-col items-center justify-center p-6 text-xs text-muted-foreground">
-        <Loader2 className="mb-2 size-5 animate-spin text-primary" />
+      <div className="panel-surface flex h-full flex-col items-center justify-center p-6 font-mono text-xs text-muted-foreground">
+        <Loader2 className="mb-2 size-4 animate-spin text-primary" />
         Loading entity details…
       </div>
     );
@@ -137,7 +137,7 @@ export function NodeDetailsPanel({
       : null;
 
   return (
-    <div className="panel-surface flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg">
+    <div className="panel-surface flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-md">
       <PanelHeading
         title="Node Inspector"
         hint={nodeData["filePath"] || effectiveNode.label}
@@ -145,33 +145,33 @@ export function NodeDetailsPanel({
       />
 
       <ScrollArea className="min-h-0 min-w-0 flex-1 w-full overflow-hidden">
-        <div className="space-y-4 p-4 min-w-0 max-w-full overflow-x-hidden">
+        <div className="space-y-3.5 p-3.5 min-w-0 max-w-full overflow-x-hidden">
           {/* Header Card */}
-          <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-background/50 p-3">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded border border-border bg-surface">
-                <Icon className={`size-4 ${kindToken.text}`} />
+          <div className="min-w-0 max-w-full overflow-hidden rounded border border-border bg-surface/60 p-2.5">
+            <div className="flex min-w-0 items-start gap-2">
+              <div className="mt-0.5 grid size-6 shrink-0 place-items-center rounded border border-border bg-elevated">
+                <Icon className={`size-3.5 ${kindToken.text}`} />
               </div>
               <div className="min-w-0 flex-1 overflow-hidden">
                 <h4
-                  className="truncate font-mono text-sm font-semibold text-foreground"
+                  className="truncate font-mono text-xs font-semibold text-foreground"
                   title={effectiveNode.label}
                 >
                   {effectiveNode.label}
                 </h4>
                 <p
-                  className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground"
-                  title={nodeData["filePath"] || "External / Package"}
+                  className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground"
+                  title={nodeData["filePath"] || "External Module"}
                 >
-                  {nodeData["filePath"] || "External / Package"}
+                  {nodeData["filePath"] || "External Module"}
                 </p>
               </div>
             </div>
 
             {/* API Route Callout */}
             {nodeType === "api_route" && (
-              <div className="mt-3 flex min-w-0 items-center gap-2 rounded border border-purple-500/30 bg-purple-500/10 px-2.5 py-1.5 font-mono text-xs text-purple-300">
-                <Globe className="size-3.5 shrink-0" />
+              <div className="mt-2 flex min-w-0 items-center gap-2 rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1 font-mono text-xs text-purple-300">
+                <Globe className="size-3 shrink-0" />
                 <span className="shrink-0 font-bold uppercase tracking-wider">
                   {nodeData["method"] || "ROUTE"}
                 </span>
@@ -182,8 +182,8 @@ export function NodeDetailsPanel({
             )}
           </div>
 
-          {/* Quick Metrics */}
-          <dl className="grid w-full min-w-0 grid-cols-3 gap-1.5 sm:gap-2 text-center">
+          {/* Quick Metrics KPI row (3 equal columns with min-w-0) */}
+          <dl className="grid w-full min-w-0 grid-cols-3 gap-1.5 text-center">
             {[
               { k: "Lines", v: locDisplay || (lineDisplay ? lineDisplay : "—") },
               { k: "Depends on", v: String(dependsOnRels.length) },
@@ -191,10 +191,10 @@ export function NodeDetailsPanel({
             ].map((s) => (
               <div
                 key={s.k}
-                className="flex min-w-0 flex-col justify-center overflow-hidden rounded-md border border-border bg-background/40 px-1.5 py-2"
+                className="flex min-w-0 flex-col justify-center overflow-hidden rounded border border-border bg-surface/50 px-1.5 py-1.5"
               >
                 <dt
-                  className="truncate font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground"
+                  className="truncate font-mono text-[9px] uppercase tracking-wider text-muted-foreground"
                   title={s.k}
                 >
                   {s.k}
@@ -211,38 +211,37 @@ export function NodeDetailsPanel({
 
           {/* Main Inspection Tabs */}
           <Tabs defaultValue="details" className="w-full min-w-0">
-            <TabsList className="grid w-full grid-cols-3 h-9 p-1 min-w-0">
-              <TabsTrigger value="details" className="truncate text-xs px-1">
+            <TabsList className="grid w-full grid-cols-3 h-7 p-0.5 min-w-0 bg-elevated/70">
+              <TabsTrigger value="details" className="truncate font-mono text-[11px] px-1 h-6">
                 Details
               </TabsTrigger>
               <TabsTrigger
                 value="relations"
-                className="truncate text-xs px-1"
+                className="truncate font-mono text-[11px] px-1 h-6"
                 title={`Relations (${outgoing.length + incoming.length})`}
               >
                 Relations ({outgoing.length + incoming.length})
               </TabsTrigger>
-              <TabsTrigger value="ai" className="truncate text-xs px-1">
+              <TabsTrigger value="ai" className="truncate font-mono text-[11px] px-1 h-6">
                 AI
               </TabsTrigger>
             </TabsList>
 
             {/* Details & Symbol Metadata Tab */}
-            <TabsContent value="details" className="mt-3 space-y-3 min-w-0">
-              {/* Source Location */}
-              <div className="space-y-2 rounded-md border border-border bg-background/30 p-3 min-w-0 overflow-hidden">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            <TabsContent value="details" className="mt-2.5 space-y-2.5 min-w-0">
+              <div className="space-y-1.5 rounded border border-border bg-surface/40 p-2.5 min-w-0 overflow-hidden">
+                <p className="font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Source Metadata
                 </p>
-                <div className="grid grid-cols-2 gap-2 text-xs min-w-0">
+                <div className="grid grid-cols-2 gap-1.5 font-mono text-[11px] min-w-0">
                   <div className="min-w-0 overflow-hidden">
                     <span className="text-muted-foreground">Kind: </span>
-                    <span className="truncate font-mono text-foreground">{effectiveNode.type}</span>
+                    <span className="truncate text-foreground font-medium">{effectiveNode.type}</span>
                   </div>
                   {lineDisplay ? (
                     <div className="min-w-0 overflow-hidden">
-                      <span className="text-muted-foreground">Lines: </span>
-                      <span className="truncate font-mono text-foreground" title={lineDisplay}>
+                      <span className="text-muted-foreground">Range: </span>
+                      <span className="truncate text-foreground" title={lineDisplay}>
                         {lineDisplay}
                       </span>
                     </div>
@@ -250,7 +249,7 @@ export function NodeDetailsPanel({
                   {nodeData["isExported"] !== undefined ? (
                     <div className="min-w-0 overflow-hidden">
                       <span className="text-muted-foreground">Exported: </span>
-                      <span className="font-mono text-foreground">
+                      <span className="text-foreground">
                         {nodeData["isExported"] ? "Yes" : "No"}
                       </span>
                     </div>
@@ -258,7 +257,7 @@ export function NodeDetailsPanel({
                   {nodeData["size"] ? (
                     <div className="min-w-0 overflow-hidden">
                       <span className="text-muted-foreground">Size: </span>
-                      <span className="truncate font-mono text-foreground">
+                      <span className="truncate text-foreground">
                         {formatBytes(nodeData["size"])}
                       </span>
                     </div>
@@ -267,7 +266,7 @@ export function NodeDetailsPanel({
                     <div className="col-span-2 min-w-0 overflow-hidden">
                       <span className="text-muted-foreground">Handler: </span>
                       <code
-                        className="break-all font-mono text-[11px] text-primary"
+                        className="break-all font-mono text-[10px] text-primary font-medium"
                         title={nodeData["handler"]}
                       >
                         {nodeData["handler"]}
@@ -280,10 +279,10 @@ export function NodeDetailsPanel({
               {/* Contained Declarations */}
               {containedRels.length > 0 ? (
                 <div className="min-w-0">
-                  <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <p className="mb-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Contained Symbols ({containedRels.length})
                   </p>
-                  <ul className="space-y-1.5 min-w-0">
+                  <ul className="space-y-1 min-w-0">
                     {containedRels.map((rel) => {
                       const targetEntity = nodesById[rel.targetId];
                       const targetLabel = targetEntity?.label || rel.targetId;
@@ -295,7 +294,7 @@ export function NodeDetailsPanel({
                           <button
                             type="button"
                             onClick={() => onSelectNode?.(rel.targetId)}
-                            className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-background/40 px-2.5 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                            className="group flex w-full min-w-0 items-center justify-between gap-2 rounded border border-border bg-surface/40 px-2 py-1 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
                           >
                             <span className="min-w-0 flex-1 overflow-hidden">
                               <span
@@ -306,7 +305,7 @@ export function NodeDetailsPanel({
                               </span>
                             </span>
                             <span
-                              className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${targetTokens.badge}`}
+                              className={`shrink-0 rounded px-1 py-0.2 font-mono text-[9px] uppercase tracking-wider ${targetTokens.badge}`}
                             >
                               {targetTokens.label}
                             </span>
@@ -321,14 +320,14 @@ export function NodeDetailsPanel({
             </TabsContent>
 
             {/* Relationships Tab */}
-            <TabsContent value="relations" className="mt-3 space-y-4 min-w-0">
+            <TabsContent value="relations" className="mt-2.5 space-y-3 min-w-0">
               {/* Outbound ("Depends on") */}
               <div className="min-w-0">
-                <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="mb-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Depends on ({dependsOnRels.length})
                 </p>
                 {dependsOnRels.length > 0 ? (
-                  <ul className="space-y-1.5 min-w-0">
+                  <ul className="space-y-1 min-w-0">
                     {dependsOnRels.map((rel) => {
                       const targetEntity = nodesById[rel.targetId];
                       const targetLabel = targetEntity?.label || rel.targetId;
@@ -340,7 +339,7 @@ export function NodeDetailsPanel({
                           <button
                             type="button"
                             onClick={() => onSelectNode?.(rel.targetId)}
-                            className="group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                            className="group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded border border-border bg-surface/40 px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
                           >
                             <RelationDot relation={rel.relationshipType} />
                             <span className="min-w-0 overflow-hidden">
@@ -357,24 +356,24 @@ export function NodeDetailsPanel({
                                 {relToken.label} {targetPath ? `· ${targetPath}` : ""}
                               </span>
                             </span>
-                            <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                            <ArrowUpRight className="size-3 shrink-0 text-muted-foreground group-hover:text-primary" />
                           </button>
                         </li>
                       );
                     })}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No outbound dependencies recorded.</p>
+                  <p className="font-mono text-[11px] text-muted-foreground">No outbound dependencies recorded.</p>
                 )}
               </div>
 
               {/* Inbound ("Used by") */}
               <div className="min-w-0">
-                <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="mb-1 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Used by ({incoming.length})
                 </p>
                 {incoming.length > 0 ? (
-                  <ul className="space-y-1.5 min-w-0">
+                  <ul className="space-y-1 min-w-0">
                     {incoming.map((rel) => {
                       const sourceEntity = nodesById[rel.sourceId];
                       const sourceLabel = sourceEntity?.label || rel.sourceId;
@@ -386,7 +385,7 @@ export function NodeDetailsPanel({
                           <button
                             type="button"
                             onClick={() => onSelectNode?.(rel.sourceId)}
-                            className="group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                            className="group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded border border-border bg-surface/40 px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
                           >
                             <RelationDot relation={rel.relationshipType} />
                             <span className="min-w-0 overflow-hidden">
@@ -403,26 +402,26 @@ export function NodeDetailsPanel({
                                 {relToken.label} {sourcePath ? `· ${sourcePath}` : ""}
                               </span>
                             </span>
-                            <ArrowDownLeft className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                            <ArrowDownLeft className="size-3 shrink-0 text-muted-foreground group-hover:text-primary" />
                           </button>
                         </li>
                       );
                     })}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No inbound references recorded.</p>
+                  <p className="font-mono text-[11px] text-muted-foreground">No inbound references recorded.</p>
                 )}
               </div>
 
               {onTrace ? (
-                <Button variant="outline" size="sm" className="w-full shrink-0" onClick={onTrace}>
+                <Button variant="outline" size="sm" className="w-full shrink-0 h-7 font-mono text-xs" onClick={onTrace}>
                   Trace flow through this node
                 </Button>
               ) : null}
             </TabsContent>
 
             {/* AI Explanation Tab */}
-            <TabsContent value="ai" className="mt-3 min-w-0">
+            <TabsContent value="ai" className="mt-2.5 min-w-0">
               <AiExplanationPanel
                 mode="node"
                 nodeId={nodeId}

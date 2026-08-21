@@ -92,37 +92,39 @@ function Overview() {
   const isLoading = (repoLoading || filesLoading || graphLoading) && !repository && !graphData;
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-4 sm:px-4 sm:py-6 lg:overflow-y-auto">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+    <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-4 sm:px-4 sm:py-5 lg:overflow-y-auto">
+      {/* Top Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
+          <h1 className="font-mono text-lg font-semibold tracking-tight text-foreground sm:text-xl">
             {owner}/{name}
           </h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {repository?.description || `Static code structure and relationship analysis for ${owner}/${name}.`}
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+            {repository?.description || `Static code structure, symbol relationships, and architecture map.`}
           </p>
         </div>
-        <Button asChild size="sm" className="shrink-0 gap-1.5">
+        <Button asChild size="sm" className="h-8 gap-1.5 font-mono text-xs">
           <Link to="/repo/$owner/$name/graph" params={{ owner, name }} search={(prev) => prev}>
             <Network className="size-3.5" />
-            <span className="hidden sm:inline">Open graph</span>
+            <span>Interactive Graph</span>
             <ArrowRight className="size-3.5" />
           </Link>
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="flex h-64 items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="size-5 animate-spin text-primary" />
+        <div className="flex h-64 items-center justify-center gap-2 font-mono text-xs text-muted-foreground">
+          <Loader2 className="size-4 animate-spin text-primary" />
           Loading repository analysis data…
         </div>
       ) : (
         <>
-          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* Stat KPI Bar */}
+          <div className="mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
             <StatTile
-              label="Files"
+              label="Source Files"
               value={String(totalFiles)}
-              sub={repository?.defaultBranch ? `branch: ${repository.defaultBranch}` : "analyzed source files"}
+              sub={repository?.defaultBranch ? `branch: ${repository.defaultBranch}` : "indexed files"}
             />
             <StatTile
               label="Primary Language"
@@ -141,9 +143,11 @@ function Overview() {
             />
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)_340px]">
-            <section className="panel-surface flex h-[520px] flex-col overflow-hidden rounded-lg">
-              <PanelHeading title="File explorer" hint={`${totalFiles} files indexed`} />
+          {/* 3-Column Grid */}
+          <div className="mt-4 grid gap-3.5 lg:grid-cols-[300px_minmax(0,1fr)_340px]">
+            {/* Left Rail: File Explorer */}
+            <section className="panel-surface flex h-[540px] flex-col overflow-hidden rounded-md">
+              <PanelHeading title="File Explorer" hint={`${totalFiles} files`} />
               <FileExplorer
                 tree={fileTree as any || []}
                 selectedId={selectedId}
@@ -152,7 +156,8 @@ function Overview() {
               />
             </section>
 
-            <div className="grid min-w-0 gap-4">
+            {/* Middle Column: Composition, Hotspots, AI Overview */}
+            <div className="grid min-w-0 gap-3.5 content-start">
               <CompositionPanel
                 repo={{
                   language: repository?.language || "JavaScript/TypeScript",
@@ -168,8 +173,9 @@ function Overview() {
               />
             </div>
 
-            <div className="grid content-start gap-4 min-w-0">
-              <div className="flex h-[520px] min-w-0 flex-col overflow-hidden">
+            {/* Right Column: Node Details Inspector */}
+            <div className="grid content-start gap-3 min-w-0">
+              <div className="flex h-[495px] min-w-0 flex-col overflow-hidden">
                 <NodeDetailsPanel
                   node={selectedId ? { id: selectedId, label: selectedId } : null}
                   nodesById={nodesById}
@@ -178,10 +184,10 @@ function Overview() {
                 />
               </div>
 
-
               <Button
                 variant="outline"
                 size="sm"
+                className="h-8 font-mono text-xs gap-1.5"
                 onClick={() =>
                   navigate({
                     to: "/repo/$owner/$name/graph",
@@ -190,7 +196,8 @@ function Overview() {
                   })
                 }
               >
-                Inspect in graph workspace
+                <Network className="size-3.5" />
+                View in Graph Workspace
               </Button>
             </div>
           </div>
@@ -199,4 +206,3 @@ function Overview() {
     </main>
   );
 }
-

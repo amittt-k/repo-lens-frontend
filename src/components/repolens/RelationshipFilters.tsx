@@ -35,60 +35,67 @@ export function RelationshipFilters({
   }
 
   return (
-    <section className="panel-surface overflow-hidden rounded-lg">
-      <PanelHeading title="Relationships" hint="Filter relationship edges" />
-      <div className="space-y-4 p-4">
-        <div className="grid grid-cols-2 gap-2">
-          {allRelations.map((relation) => {
-            const token = relationTokens[relation]!;
-            const checked = value.relations.some((r) => r.toUpperCase() === relation.toUpperCase());
-            return (
-              <div key={relation} className="flex items-center gap-2">
-                <Checkbox
-                  id={`rel-${relation}`}
-                  checked={checked}
-                  onCheckedChange={() =>
-                    onChange({ ...value, relations: toggle(value.relations, relation) })
-                  }
-                />
-                <Label
-                  htmlFor={`rel-${relation}`}
-                  className="flex min-w-0 cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground"
-                >
-                  <span
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: token.cssVar }}
+    <section className="panel-surface overflow-hidden rounded-md">
+      <PanelHeading title="Edge & Node Filters" hint="Toggle visibility on graph canvas" />
+      <div className="space-y-3.5 p-3">
+        <div>
+          <p className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Relationships ({value.relations.length}/{allRelations.length})
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {allRelations.map((relation) => {
+              const token = relationTokens[relation]!;
+              const checked = value.relations.some((r) => r.toUpperCase() === relation.toUpperCase());
+              return (
+                <div key={relation} className="flex items-center gap-1.5">
+                  <Checkbox
+                    id={`rel-${relation}`}
+                    checked={checked}
+                    onCheckedChange={() =>
+                      onChange({ ...value, relations: toggle(value.relations, relation) })
+                    }
+                    className="size-3.5 rounded-xs"
                   />
-                  <span className="truncate">{token.label}</span>
-                </Label>
-              </div>
-            );
-          })}
+                  <Label
+                    htmlFor={`rel-${relation}`}
+                    className="flex min-w-0 cursor-pointer items-center gap-1.5 font-mono text-[11px] font-normal text-muted-foreground hover:text-foreground"
+                  >
+                    <span
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: token.cssVar }}
+                    />
+                    <span className="truncate">{token.label}</span>
+                  </Label>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="border-t border-border pt-3">
-          <p className="mb-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            Node Kinds
+        <div className="border-t border-border pt-2.5">
+          <p className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Node Kinds ({value.kinds.length}/{allKinds.length})
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             {allKinds.map((kind) => {
               const token = kindTokens[kind]!;
               const checked = value.kinds.some((k) => k.toLowerCase() === kind.toLowerCase());
               return (
-                <div key={kind} className="flex items-center gap-2">
+                <div key={kind} className="flex items-center gap-1.5">
                   <Checkbox
                     id={`kind-${kind}`}
                     checked={checked}
                     onCheckedChange={() =>
                       onChange({ ...value, kinds: toggleKind(value.kinds, kind) })
                     }
+                    className="size-3.5 rounded-xs"
                   />
                   <Label
                     htmlFor={`kind-${kind}`}
-                    className="flex min-w-0 cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground"
+                    className="flex min-w-0 cursor-pointer items-center gap-1.5 font-mono text-[11px] font-normal text-muted-foreground hover:text-foreground"
                   >
                     <span
-                      className="size-2 shrink-0 rounded-full"
+                      className="size-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: token.cssVar }}
                     />
                     <span className="truncate">{token.label}</span>

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Check, Loader2, Waypoints } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { Progress } from "@/components/ui/progress";
@@ -90,17 +90,21 @@ export function Analyzing() {
   const pct = Math.round((Math.min(stage, STAGES.length) / STAGES.length) * 100);
 
   return (
-    <main className="hero-glow flex min-h-screen items-center justify-center px-4 py-12">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-lg">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="grid size-7 shrink-0 place-items-center rounded-md border border-primary/40 bg-primary/10">
-              <Waypoints className="size-4 text-primary" />
+        {/* Terminal Header */}
+        <div className="mb-3 flex items-center justify-between gap-3 border-b border-border pb-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="grid size-6 place-items-center rounded border border-primary/40 bg-primary/10">
+              <Waypoints className="size-3 text-primary" />
             </div>
-            <span className="truncate font-mono text-sm">
+            <span className="truncate font-mono text-xs font-semibold text-foreground">
               {ownerParam}/{repoParam}
             </span>
           </div>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            Analysis runner
+          </span>
         </div>
 
         {errorMessage ? (
@@ -111,9 +115,14 @@ export function Analyzing() {
             retryLabel="Back to start"
           />
         ) : (
-          <div className="panel-surface scan-line rounded-xl p-5">
-            <Progress value={pct} className="h-1" />
-            <ol className="mt-5 space-y-2.5">
+          <div className="panel-surface rounded-lg p-5">
+            <div className="flex items-center justify-between text-xs font-mono text-muted-foreground mb-2">
+              <span>Pipeline progress</span>
+              <span className="tabular-nums text-foreground font-semibold">{pct}%</span>
+            </div>
+            <Progress value={pct} className="h-1 bg-elevated" />
+
+            <ol className="mt-5 space-y-2">
               {STAGES.map((label, i) => {
                 const done = i < stage;
                 const active = i === stage;
@@ -121,26 +130,30 @@ export function Analyzing() {
                   <li key={label} className="flex items-center gap-2.5">
                     <span
                       className={cn(
-                        "grid size-5 shrink-0 place-items-center rounded-full border",
+                        "grid size-4 shrink-0 place-items-center rounded border",
                         done
                           ? "border-primary/50 bg-primary/15 text-primary"
                           : active
-                            ? "border-primary/40 text-primary"
-                            : "border-border text-muted-foreground/40",
+                            ? "border-primary text-primary bg-primary/10"
+                            : "border-border text-muted-foreground/30",
                       )}
                     >
                       {done ? (
-                        <Check className="size-3" />
+                        <Check className="size-2.5" />
                       ) : active ? (
-                        <Loader2 className="size-3 animate-spin" />
+                        <Loader2 className="size-2.5 animate-spin" />
                       ) : (
-                        <span className="size-1.5 rounded-full bg-current" />
+                        <span className="size-1 rounded-full bg-current" />
                       )}
                     </span>
                     <span
                       className={cn(
                         "truncate font-mono text-xs",
-                        done || active ? "text-foreground" : "text-muted-foreground/50",
+                        done
+                          ? "text-muted-foreground line-through decoration-muted-foreground/40"
+                          : active
+                            ? "text-foreground font-medium"
+                            : "text-muted-foreground/40",
                       )}
                     >
                       {label}
@@ -149,13 +162,15 @@ export function Analyzing() {
                 );
               })}
             </ol>
-            <p className="mt-5 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Executing static analysis pipeline: AST extraction, dependency resolution, symbol relationships, and graph construction.
-            </p>
+
+            <div className="mt-5 border-t border-border pt-3">
+              <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+                Running static AST parsing, relative import resolution, Express endpoint matching, and graph construction.
+              </p>
+            </div>
           </div>
         )}
       </div>
     </main>
   );
 }
-

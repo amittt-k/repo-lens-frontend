@@ -34,7 +34,7 @@ export function GraphSidebar({
 }: GraphSidebarProps) {
   return (
     <div className={className}>
-      <section className={`panel-surface flex ${explorerHeight} flex-col overflow-hidden rounded-lg`}>
+      <section className={`panel-surface flex ${explorerHeight} flex-col overflow-hidden rounded-md`}>
         <PanelHeading title="Explorer" hint="Click a file to select its node" />
         <FileExplorer
           tree={tree}

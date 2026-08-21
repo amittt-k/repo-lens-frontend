@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { getRelationTokens } from "@/lib/graph-tokens";
 import type { TracedFlow } from "@/utils/flowTracing";
 import { AiExplanationPanel } from "./AiExplanationPanel";
 import { EmptyState, PanelHeading, RelationDot } from "./primitives";
@@ -46,7 +45,7 @@ export function FlowTracePanel({
     activeFlow || (flows.find((f) => f.id === activeFlowId || f.startNodeId === activeFlowId) ?? null);
 
   return (
-    <section className={cn("panel-surface flex flex-col overflow-hidden rounded-lg", className)}>
+    <section className={cn("panel-surface flex flex-col overflow-hidden rounded-md", className)}>
       <PanelHeading
         title="Flow Tracing"
         hint={
@@ -62,23 +61,23 @@ export function FlowTracePanel({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 text-muted-foreground hover:text-foreground"
+                className="size-6 text-muted-foreground hover:text-foreground"
                 onClick={() => onFlowChange(null)}
                 title="Clear active trace"
               >
-                <X className="size-3.5" />
+                <X className="size-3" />
               </Button>
             ) : null}
 
             {flows.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
-                    <RouteIcon className="size-3.5" />
+                  <Button variant="outline" size="sm" className="h-6 gap-1 px-2 font-mono text-[11px]">
+                    <RouteIcon className="size-3" />
                     <span className="max-w-[110px] truncate">
-                      {currentFlow ? currentFlow.name : "Select flow"}
+                      {currentFlow ? currentFlow.name : "Select Flow"}
                     </span>
-                    <ChevronDown className="size-3 shrink-0" />
+                    <ChevronDown className="size-2.5 shrink-0 opacity-60" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
@@ -86,12 +85,12 @@ export function FlowTracePanel({
                     <DropdownMenuItem
                       key={f.id}
                       onSelect={() => onFlowChange(f.startNodeId || f.id)}
-                      className="text-xs"
+                      className="font-mono text-xs"
                     >
                       {f.name}
                     </DropdownMenuItem>
                   ))}
-                  <DropdownMenuItem onSelect={() => onFlowChange(null)} className="text-xs text-muted-foreground">
+                  <DropdownMenuItem onSelect={() => onFlowChange(null)} className="font-mono text-xs text-muted-foreground">
                     Clear trace
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -104,18 +103,18 @@ export function FlowTracePanel({
       {currentFlow ? (
         <div className="p-3">
           <Tabs value={panelTab} onValueChange={(v) => setPanelTab(v as "steps" | "ai")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="steps" className="text-xs">
+            <TabsList className="grid w-full grid-cols-2 h-7 p-0.5 bg-elevated/70">
+              <TabsTrigger value="steps" className="font-mono text-[11px] h-6">
                 Steps ({currentFlow.steps.length})
               </TabsTrigger>
-              <TabsTrigger value="ai" className="gap-1.5 text-xs">
-                <Sparkles className="size-3" />
-                Explain flow
+              <TabsTrigger value="ai" className="gap-1 font-mono text-[11px] h-6">
+                <Sparkles className="size-2.5" />
+                Explain Flow
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="steps" className="mt-3">
-              <ol className="space-y-1.5">
+            <TabsContent value="steps" className="mt-2.5">
+              <ol className="space-y-1">
                 {currentFlow.steps.map((step, i) => {
                   const isSelected = selectedNodeId === step.nodeId;
 
@@ -126,17 +125,17 @@ export function FlowTracePanel({
                         type="button"
                         onClick={() => onStepSelect?.(step.nodeId)}
                         className={cn(
-                          "grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 rounded-md border px-2.5 py-2 text-left transition-all",
+                          "grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded border px-2 py-1.5 text-left transition-all",
                           isSelected
-                            ? "border-primary bg-primary/10 shadow-sm shadow-primary/10"
-                            : "border-border bg-background/40 hover:border-border-strong hover:bg-background/60",
+                            ? "border-primary bg-primary/10 shadow-xs"
+                            : "border-border bg-surface/40 hover:border-border-strong hover:bg-surface/70",
                         )}
                       >
-                        <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded border border-border-strong font-mono text-[10px] tabular-nums text-muted-foreground">
+                        <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded border border-border font-mono text-[9px] tabular-nums text-muted-foreground">
                           {i + 1}
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-mono text-xs font-medium text-foreground">
+                          <span className="block truncate font-mono text-xs font-semibold text-foreground">
                             {step.label}
                           </span>
                           {step.path ? (
@@ -144,8 +143,8 @@ export function FlowTracePanel({
                               {step.path}
                             </span>
                           ) : null}
-                          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-snug text-muted-foreground">
-                            <CornerDownRight className="size-3 shrink-0" />
+                          <span className="mt-0.5 flex min-w-0 items-center gap-1 font-mono text-[10px] text-muted-foreground">
+                            <CornerDownRight className="size-2.5 shrink-0 opacity-70" />
                             <span className="truncate">{step.detail}</span>
                           </span>
                         </span>
@@ -153,7 +152,7 @@ export function FlowTracePanel({
 
                       {/* Transition arrow to next step */}
                       {i < currentFlow.steps.length - 1 && currentFlow.steps[i + 1]?.relationshipType ? (
-                        <div className="my-1 flex items-center gap-1.5 pl-6 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                        <div className="my-0.5 flex items-center gap-1.5 pl-5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/80">
                           <RelationDot relation={currentFlow.steps[i + 1]!.relationshipType!} />
                           <span>{currentFlow.steps[i + 1]!.relationshipType}</span>
                         </div>
@@ -164,14 +163,14 @@ export function FlowTracePanel({
               </ol>
             </TabsContent>
 
-            <TabsContent value="ai" className="mt-3">
+            <TabsContent value="ai" className="mt-2.5">
               <AiExplanationPanel mode="flow" flow={currentFlow} embedded />
             </TabsContent>
           </Tabs>
         </div>
       ) : (
         <EmptyState
-          icon={<RouteIcon className="size-4" />}
+          icon={<RouteIcon className="size-3.5" />}
           title="No active flow trace"
           description="Click 'Trace flow through this node' in the Inspector or select an entry flow above to highlight the execution chain."
         />

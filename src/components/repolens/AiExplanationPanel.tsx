@@ -34,7 +34,7 @@ function SafeMarkdownProse({ content }: { content: string }) {
   function flushList(keyPrefix: string) {
     if (currentList.length > 0) {
       elements.push(
-        <ul key={`${keyPrefix}-list`} className="my-1.5 space-y-1 pl-4 text-xs text-foreground/90">
+        <ul key={`${keyPrefix}-list`} className="my-1.5 space-y-1 pl-4 text-xs text-foreground/90 font-sans">
           {currentList.map((item, idx) => (
             <li key={idx} className="list-disc leading-relaxed">
               {formatInlineSpans(item)}
@@ -60,7 +60,7 @@ function SafeMarkdownProse({ content }: { content: string }) {
         return (
           <code
             key={i}
-            className="break-all rounded bg-muted/80 px-1 py-0.5 font-mono text-[11px] text-primary"
+            className="break-all rounded border border-border bg-surface px-1 py-0.5 font-mono text-[11px] text-primary"
           >
             {part.slice(1, -1)}
           </code>
@@ -88,19 +88,19 @@ function SafeMarkdownProse({ content }: { content: string }) {
       );
     } else if (trimmed.startsWith("## ")) {
       elements.push(
-        <h3 key={i} className="mt-4 mb-1.5 break-words font-sans text-sm font-semibold tracking-tight text-foreground">
+        <h3 key={i} className="mt-4 mb-1.5 break-words font-sans text-xs font-semibold tracking-tight text-foreground">
           {trimmed.slice(3)}
         </h3>,
       );
     } else if (trimmed.startsWith("# ")) {
       elements.push(
-        <h2 key={i} className="mt-4 mb-2 break-words font-sans text-base font-bold text-foreground">
+        <h2 key={i} className="mt-4 mb-2 break-words font-sans text-sm font-semibold text-foreground">
           {trimmed.slice(2)}
         </h2>,
       );
     } else if (trimmed.length > 0) {
       elements.push(
-        <p key={i} className="my-1.5 break-words text-xs leading-relaxed text-foreground/90">
+        <p key={i} className="my-1.5 break-words text-xs leading-relaxed text-foreground/90 font-sans">
           {formatInlineSpans(trimmed)}
         </p>,
       );
@@ -198,10 +198,10 @@ export function AiExplanationPanel({
         : `Entity: ${node?.label || nodeId || "Node"}`;
 
   const body = (
-    <div className={cn("space-y-3", embedded ? "" : "p-4")}>
+    <div className={cn("space-y-3", embedded ? "" : "p-3.5")}>
       {!hasTarget ? (
         <EmptyState
-          icon={<Sparkles className="size-4" />}
+          icon={<Sparkles className="size-3.5" />}
           title={
             mode === "flow"
               ? "No active flow trace"
@@ -226,7 +226,7 @@ export function AiExplanationPanel({
                 ? `Generate a plain-language explanation of this ${flow?.steps?.length || 0}-step execution path and its boundary transitions.`
                 : `Generate a plain-language explanation of ${node?.label || "this entity"} — its responsibility, dependencies, and architectural role.`}
           </p>
-          <Button size="sm" variant="outline" className="w-full gap-2" onClick={fetchExplanation}>
+          <Button size="sm" variant="outline" className="w-full gap-2 font-mono text-xs h-8" onClick={fetchExplanation}>
             <Sparkles className="size-3.5 text-primary" />
             {mode === "repository"
               ? "Explain architecture"
@@ -236,29 +236,29 @@ export function AiExplanationPanel({
           </Button>
         </div>
       ) : status === "loading" ? (
-        <div className="space-y-2.5 py-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="space-y-2 py-1">
+          <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin text-primary" />
-            <span>Analyzing verified static facts & generating explanation…</span>
+            <span>Analyzing verified static facts…</span>
           </div>
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-[92%]" />
-          <Skeleton className="h-3 w-[78%]" />
-          <Skeleton className="h-3 w-[85%]" />
+          <Skeleton className="h-3 w-full bg-elevated" />
+          <Skeleton className="h-3 w-[92%] bg-elevated" />
+          <Skeleton className="h-3 w-[78%] bg-elevated" />
+          <Skeleton className="h-3 w-[85%] bg-elevated" />
         </div>
       ) : status === "error" ? (
-        <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+        <div className="space-y-2.5 rounded border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
           <div className="flex items-start gap-2">
-            <AlertCircle className="size-4 shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-1">
+            <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-0.5">
               <span className="font-semibold block">Explanation Unavailable</span>
-              <p className="leading-relaxed opacity-90">{errorMessage}</p>
+              <p className="leading-relaxed font-mono text-[11px] opacity-90">{errorMessage}</p>
             </div>
           </div>
           <Button
             size="sm"
             variant="outline"
-            className="h-7 w-full gap-1.5 text-xs text-foreground hover:bg-background/80"
+            className="h-7 w-full gap-1.5 font-mono text-xs text-foreground hover:bg-background/80"
             onClick={fetchExplanation}
           >
             <RefreshCw className="size-3" />
@@ -271,7 +271,7 @@ export function AiExplanationPanel({
             <SafeMarkdownProse content={explanation || "No explanation text returned."} />
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
+          <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
             <div className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
               <Bot className="size-3 text-primary" />
               <span>Grounded in RepoLens analysis {model ? `(${model})` : ""}</span>
@@ -279,10 +279,10 @@ export function AiExplanationPanel({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              className="h-6 gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground"
               onClick={fetchExplanation}
             >
-              <RefreshCw className="size-3" />
+              <RefreshCw className="size-2.5" />
               Regenerate
             </Button>
           </div>
@@ -294,7 +294,7 @@ export function AiExplanationPanel({
   if (embedded) return <div className={className}>{body}</div>;
 
   return (
-    <section className={cn("panel-surface overflow-hidden rounded-lg", className)}>
+    <section className={cn("panel-surface overflow-hidden rounded-md", className)}>
       <PanelHeading
         title={title}
         hint={

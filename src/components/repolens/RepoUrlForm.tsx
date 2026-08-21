@@ -26,12 +26,12 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
       return;
     }
     if (/^https?:\/\//i.test(input) && !/github\.com/i.test(input)) {
-      setError("Only github.com repositories are supported right now.");
+      setError("Only public github.com repositories are supported.");
       return;
     }
     const match = input.match(GITHUB_RE) ?? input.match(/^([\w.-]+)\/([\w.-]+)$/);
     if (!match) {
-      setError("That doesn't look like a repository. Try github.com/owner/repo.");
+      setError("Please enter a valid format, e.g. github.com/owner/repo");
       return;
     }
     setError(null);
@@ -45,7 +45,7 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
 
   return (
     <form
-      className={cn("w-full", compact ? "max-w-xl" : "max-w-2xl")}
+      className={cn("w-full", compact ? "max-w-md" : "max-w-2xl")}
       onSubmit={(e) => {
         e.preventDefault();
         submit(value);
@@ -54,11 +54,12 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
     >
       <div
         className={cn(
-          "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-xl border bg-surface px-3 py-2 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto]",
-          error ? "border-destructive/60" : "border-border focus-within:border-primary/60",
+          "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border bg-surface px-3 py-1.5 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto]",
+          error ? "border-destructive/60" : "border-border focus-within:border-primary/70 focus-within:ring-1 focus-within:ring-primary/40",
+          compact && "py-1 px-2.5",
         )}
       >
-        <Github className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Github className={cn("shrink-0 text-muted-foreground", compact ? "size-3.5" : "size-4")} aria-hidden />
         <input
           value={value}
           onChange={(e) => {
@@ -67,39 +68,46 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
           }}
           aria-label="GitHub repository URL"
           aria-invalid={Boolean(error)}
-          placeholder="github.com/owner/repo"
+          placeholder={compact ? "github.com/owner/repo" : "Enter repository URL (e.g. github.com/facebook/react)"}
           spellCheck={false}
-          className="min-w-0 bg-transparent py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
+          className={cn(
+            "min-w-0 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground/50",
+            compact ? "py-1" : "py-1.5 text-sm",
+          )}
         />
         <Button
           type="submit"
           disabled={pending}
-          className="col-span-2 sm:col-span-1"
           size={compact ? "sm" : "default"}
+          className={cn(
+            "col-span-2 sm:col-span-1 font-mono font-medium gap-1.5",
+            compact ? "h-7 text-xs px-2.5" : "h-9 text-xs px-3.5",
+          )}
         >
-          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}
           Analyze
-          {!pending ? <ArrowRight className="size-4" /> : null}
+          {!pending ? <ArrowRight className="size-3.5" /> : null}
         </Button>
       </div>
 
-      <div className="mt-2 min-h-5">
-        {error ? (
-          <p className="text-xs text-destructive" role="alert">
-            {error}
-          </p>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Point at any public GitHub repository to extract ASTs, dependencies, and code relationships.
-          </p>
-        )}
-      </div>
-
+      {!compact ? (
+        <div className="mt-2 min-h-5 flex items-center justify-between gap-2">
+          {error ? (
+            <p className="font-mono text-xs text-destructive" role="alert">
+              {error}
+            </p>
+          ) : (
+            <p className="font-mono text-[11px] text-muted-foreground/80">
+              Statically inspects files, AST symbols, dependencies, and API routes.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {!compact ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            try
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 mr-1">
+            Samples:
           </span>
           {SAMPLES.map((s) => (
             <button
@@ -109,7 +117,7 @@ export function RepoUrlForm({ compact = false }: { compact?: boolean }) {
                 setValue(`github.com/${s}`);
                 setError(null);
               }}
-              className="rounded-md border border-border bg-elevated px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground"
+              className="rounded border border-border bg-surface px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground"
             >
               {s}
             </button>

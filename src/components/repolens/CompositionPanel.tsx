@@ -1,7 +1,6 @@
 import { PanelHeading } from "./primitives";
 
 export interface CompositionPanelProps {
-
   repo: {
     languages?: { name: string; share: number }[];
     language?: string;
@@ -32,29 +31,30 @@ export function CompositionPanel({ repo, relationCounts, className }: Compositio
       : [{ name: "JavaScript/TypeScript", share: 100 }];
 
   return (
-    <section className={className ? className : "panel-surface overflow-hidden rounded-lg"}>
-      <PanelHeading title="Composition" hint="Language and relationship mix" />
-      <div className="space-y-4 p-4">
-        <div className="space-y-2.5">
+    <section className={className ? className : "panel-surface overflow-hidden rounded-md"}>
+      <PanelHeading title="Composition" hint="Language & relationship mix" />
+      <div className="space-y-3.5 p-3.5">
+        <div className="space-y-2">
           {languages.map((lang) => (
             <div key={lang.name}>
               <div className="flex items-center justify-between font-mono text-[11px]">
                 <span className="truncate text-muted-foreground">{lang.name}</span>
-                <span className="tabular-nums text-muted-foreground">{lang.share}%</span>
+                <span className="tabular-nums text-foreground font-medium">{lang.share}%</span>
               </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-elevated">
-                <div className="h-full rounded-full bg-primary/70" style={{ width: `${lang.share}%` }} />
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-elevated">
+                <div className="h-full rounded-full bg-primary/80" style={{ width: `${lang.share}%` }} />
               </div>
             </div>
           ))}
         </div>
+
         <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
           {relationCounts.slice(0, 6).map((r) => (
-            <div key={r.relation} className="rounded-md border border-border bg-background/40 px-2 py-2">
-              <p className="truncate font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <div key={r.relation} className="rounded border border-border bg-surface/60 px-2.5 py-1.5">
+              <p className="truncate font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                 {defaultLabels[r.relation] || r.relation}
               </p>
-              <p className="mt-0.5 text-sm font-semibold tabular-nums">{r.count}</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">{r.count}</p>
             </div>
           ))}
         </div>
@@ -62,4 +62,3 @@ export function CompositionPanel({ repo, relationCounts, className }: Compositio
     </section>
   );
 }
-
